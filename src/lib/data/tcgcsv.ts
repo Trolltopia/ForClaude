@@ -55,39 +55,49 @@ export function findPlayBoxProduct(products: TcgProduct[]): TcgProduct | null {
   return candidates[0] ?? null;
 }
 
-// First match wins, so the more specific names come first.
-const KINDS: [RegExp, SealedKind][] = [
-  [/collector booster (display|box)\b.*\bcase\b|\bcollector booster case\b/i, "Collector Booster Case"],
-  [/collector booster (display|box)\b/i, "Collector Booster Display"],
-  [/collector booster\b/i, "Collector Booster Pack"],
-  [/play booster (display|box)\b.*\bcase\b|\bplay booster case\b/i, "Play Booster Case"],
-  [/play booster (display|box)\b/i, "Play Booster Display"],
-  [/sleeved play booster/i, "Sleeved Play Booster"],
-  [/play booster\b/i, "Play Booster Pack"],
-  [/gift bundle/i, "Gift Bundle"],
-  [/bundle/i, "Bundle"],
-  [/prerelease/i, "Prerelease Pack"],
-  [/commander deck/i, "Commander Deck"],
-  [/starter (kit|deck)|beginner box/i, "Starter Kit"],
-  [/scene box/i, "Scene Box"],
-  [/jumpstart/i, "Jumpstart"],
-  [/\b(booster|display|box|deck|kit|collection|case|pack|set)\b/i, "Other"],
-];
-
 function isSingle(p: TcgProduct): boolean {
   return (p.extendedData ?? []).some((d) => d.name === "Number" || d.name === "Rarity");
 }
 
+// Other-language printings: priced against English singles they'd be misleading.
+const FOREIGN = /\((japanese|jp|chinese|korean|german|french|italian|spanish|portuguese|russian)\)|\bjapanese\b/i;
+
 /** What kind of sealed product a TCGplayer listing is, or null for singles and non-product listings. */
 export function classifySealed(p: TcgProduct): SealedKind | null {
+  const n = p.name;
   if (isSingle(p)) return null;
-  if (/\b(token|art card|art series|emblem|oversized|checklist|code card)\b/i.test(p.name)) return null;
-  for (const [re, kind] of KINDS) if (re.test(p.name)) return kind;
+  if (/\b(token|art card|art series|emblem|oversized|checklist|code card)\b/i.test(n)) return null;
+  if (FOREIGN.test(n)) return null;
+  // "Case", "Display Case" and "MasterCase" all mean a sealed case of the product.
+  const isCase = /case\b/i.test(n) && !/showcase/i.test(n);
+  if (/collector booster/i.test(n)) {
+    if (isCase) return "Collector Booster Case";
+    return /\b(display|box)\b/i.test(n) ? "Collector Booster Display" : "Collector Booster Pack";
+  }
+  if (/play booster/i.test(n) && !/jumpstart/i.test(n)) {
+    if (isCase) return "Play Booster Case";
+    if (/\b(display|box)\b/i.test(n)) return "Play Booster Display";
+    if (/sleeved/i.test(n)) return "Sleeved Play Booster";
+    return "Play Booster Pack";
+  }
+  if (isCase) return "Case";
+  if (/bundle booster/i.test(n)) return "Other";
+  if (/gift bundle/i.test(n)) return "Gift Bundle";
+  if (/bundle/i.test(n)) return "Bundle";
+  if (/prerelease/i.test(n)) return "Prerelease Pack";
+  if (/commander deck/i.test(n)) return "Commander Deck";
+  if (/starter (kit|deck|collection)|beginner box/i.test(n)) return "Starter Kit";
+  if (/scene box/i.test(n)) return "Scene Box";
+  if (/jumpstart/i.test(n)) return "Jumpstart";
+  if (/\b(booster|display|box|deck|kit|collection|pack|set|tin|topper)\b/i.test(n)) return "Other";
   return null;
 }
 
-/** How many Play Boosters a product holds, where that's fixed and known. */
-export function playBoostersIn(kind: SealedKind, packsPerBox: number): number | null {
+/**
+ * How many Play Boosters a product holds, where that's fixed and known. Only the plain
+ * "<set> - Bundle" counts as nine; themed bundles (Finish Line, Codex, Commander's…) differ.
+ */
+export function playBoostersIn(kind: SealedKind, packsPerBox: number, name = ""): number | null {
   switch (kind) {
     case "Play Booster Pack":
     case "Sleeved Play Booster":
@@ -97,8 +107,7 @@ export function playBoostersIn(kind: SealedKind, packsPerBox: number): number | 
     case "Play Booster Case":
       return packsPerBox * 6;
     case "Bundle":
-      // Bundles since 2024 hold nine Play Boosters, plus lands, a promo and a spindown.
-      return 9;
+      return /(^|\s[-–]\s)bundle$/i.test(name.trim()) ? 9 : null;
     default:
       return null;
   }
@@ -119,6 +128,7 @@ const KIND_ORDER: SealedKind[] = [
   "Starter Kit",
   "Scene Box",
   "Jumpstart",
+  "Case",
   "Other",
 ];
 
@@ -168,7 +178,7 @@ export function sealedFrom(products: TcgProduct[], prices: TcgPrice[], packsPerB
       kind,
       market: row?.marketPrice ?? row?.midPrice ?? null,
       low: row?.lowPrice ?? null,
-      packs: playBoostersIn(kind, packsPerBox),
+      packs: playBoostersIn(kind, packsPerBox, p.name),
       url: url(p),
       image: p.imageUrl ?? null,
     });

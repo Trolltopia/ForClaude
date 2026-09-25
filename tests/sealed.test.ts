@@ -18,6 +18,31 @@ describe("classifySealed", () => {
     expect(classifySealed(P(9, "Reality Fracture Commander Deck - Mirror Mayhem"))).toBe("Commander Deck");
   });
 
+  it("handles real TCGplayer names: cases, master cases, themed bundles, other languages", () => {
+    const kind = (name: string) => classifySealed(P(0, name));
+    expect(kind("Aetherdrift - Bundle Case")).toBe("Case");
+    expect(kind("The Hobbit - Prerelease Pack Case")).toBe("Case");
+    expect(kind("Marvel Super Heroes Scene Box Case")).toBe("Case");
+    expect(kind("Teenage Mutant Ninja Turtles - Collector Booster Display MasterCase")).toBe("Collector Booster Case");
+    expect(kind("The Hobbit - Collector Booster Display Master Case")).toBe("Collector Booster Case");
+    expect(kind("The Hobbit - Play Booster Display Case")).toBe("Play Booster Case");
+    expect(kind("The Hobbit - Sleeved Play Booster Pack")).toBe("Sleeved Play Booster");
+    expect(kind("Tarkir: Dragonstorm - Collector Booster (Minimal Packaging)")).toBe("Collector Booster Pack");
+    expect(kind("Duskmourn: House of Horror - Nightmare Bundle Booster Pack")).toBe("Other");
+    expect(kind("Magic: The Gathering Foundations - Beginner Box")).toBe("Starter Kit");
+    expect(kind("Avatar: The Last Airbender - Jumpstart Booster Display")).toBe("Jumpstart");
+    expect(kind("FINAL FANTASY - Chocobo Bundle (Japanese)")).toBeNull();
+    expect(kind("FINAL FANTASY - Basic Booster Display (Japanese)")).toBeNull();
+    expect(kind("Secrets of Strixhaven - Fujichoco x Wandering Emperor Promo Pack (JP)")).toBeNull();
+  });
+
+  it("counts nine boosters only in a plain bundle", () => {
+    expect(playBoostersIn("Bundle", 30, "Aetherdrift - Bundle")).toBe(9);
+    expect(playBoostersIn("Bundle", 30, "Aetherdrift - Finish Line Bundle")).toBeNull();
+    expect(playBoostersIn("Bundle", 30, "Avatar: The Last Airbender - Commander's Bundle")).toBeNull();
+    expect(playBoostersIn("Case", 30, "Aetherdrift - Bundle Case")).toBeNull();
+  });
+
   it("skips singles, tokens and art cards", () => {
     expect(classifySealed(P(10, "Emrakul, the Exigent Doom", { extendedData: [{ name: "Rarity", value: "M" }] }))).toBeNull();
     expect(classifySealed(P(11, "Spirit Token"))).toBeNull();
@@ -31,7 +56,7 @@ describe("sealedFrom", () => {
     const products = [
       P(1, "Test Play Booster Display", { url: "https://tcg/1", imageUrl: "https://img/1" }),
       P(2, "Test Play Booster Pack"),
-      P(3, "Test Bundle"),
+      P(3, "Test - Bundle"),
       P(4, "Test Collector Booster Display"),
       P(5, "Mox Test", { extendedData: [{ name: "Number", value: "1" }] }),
     ];

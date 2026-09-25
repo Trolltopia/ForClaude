@@ -98,6 +98,7 @@ export type SealedKind =
   | "Starter Kit"
   | "Scene Box"
   | "Jumpstart"
+  | "Case"
   | "Other";
 
 /** A sealed product TCGplayer lists for the set, priced today. */
