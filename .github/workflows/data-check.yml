@@ -1,0 +1,31 @@
+name: Data check
+
+# Builds snapshots for a few sets against the live APIs (MTGJSON, Scryfall, TCGCSV)
+# and prints a breakdown, without deploying anything. Runs when the pipeline changes.
+on:
+  workflow_dispatch:
+    inputs:
+      sets:
+        description: Set codes to build, space-separated
+        default: fra blb fin
+  push:
+    branches-ignore: [main]
+    paths:
+      - "scripts/**"
+      - "src/lib/data/**"
+      - "src/lib/engine/**"
+      - "src/sets/**"
+
+jobs:
+  data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build and report
+        run: npm run data -- --report ${{ github.event.inputs.sets || 'fra blb fin' }}

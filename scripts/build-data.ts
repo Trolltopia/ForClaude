@@ -2,6 +2,7 @@
 //
 //   npm run data                 # every set in src/sets/catalog.ts
 //   npm run data -- fra msh      # just these
+//   npm run data -- --report fra # also print each slot and the top cards
 //
 // Booster structure comes from MTGJSON when it has a Play Booster model for the set,
 // otherwise from the hand-written collation in src/sets/rules. Card prices are
@@ -11,6 +12,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { buildFromMtgjson, buildFromRules, summarise } from "../src/lib/data/build";
+import { computeEv, DEFAULT_PARAMS } from "../src/lib/engine/ev";
 import type { MtgjsonSetFile } from "../src/lib/data/mtgjson";
 import { pickBooster } from "../src/lib/data/mtgjson";
 import { createScryfallClient } from "../src/lib/data/scryfall";
@@ -87,8 +89,29 @@ async function buildSet(entry: CatalogEntry): Promise<Snapshot> {
   return snapshot;
 }
 
+/** A plain-text breakdown for eyeballing a snapshot in CI logs. */
+function report(snapshot: Snapshot) {
+  const ev = computeEv(snapshot, DEFAULT_PARAMS);
+  const pad = (s: string, n: number) => s.slice(0, n).padEnd(n);
+  const usd = (n: number | null) => (n == null ? "—" : `$${n.toFixed(2)}`);
+  console.log(`    layouts: ${snapshot.model.variants.length}, priced: ${(ev.pricedShare * 100).toFixed(1)}%`);
+  for (const s of ev.sheets) {
+    console.log(
+      `    ${pad(s.label, 34)} ${s.perPack.toFixed(2).padStart(5)}/pack  ${String(s.distinctCards).padStart(4)} cards  avg ${usd(s.avgValue).padStart(8)}  box ${usd(s.evBox).padStart(9)}  ${(s.share * 100).toFixed(1).padStart(5)}%`,
+    );
+  }
+  for (const c of ev.cards.slice(0, 8)) {
+    console.log(
+      `    top: ${pad(`${c.card.name} [${c.card.set} ${c.card.cn}]${c.foil ? " foil" : ""}`, 46)} ${usd(c.price).padStart(9)}  1 in ${Math.round(1 / c.perPack)} packs  adds ${usd(c.evBox)}`,
+    );
+  }
+  for (const n of snapshot.notes) console.log(`    note: ${n}`);
+}
+
 async function main() {
-  const wanted = process.argv.slice(2).map((s) => s.toLowerCase());
+  const args = process.argv.slice(2);
+  const verbose = args.includes("--report");
+  const wanted = args.filter((a) => !a.startsWith("--")).map((s) => s.toLowerCase());
   const entries = wanted.length ? CATALOG.filter((e) => wanted.includes(e.code)) : CATALOG;
   await mkdir(OUT, { recursive: true });
 
@@ -114,6 +137,7 @@ async function main() {
         `  ${snapshot.modelSource.kind}, ${snapshot.cards.length} cards, EV $${summary.evBox.toFixed(2)}/box, ` +
           `box $${snapshot.boxPrice.usd ?? "?"} (${snapshot.boxPrice.source}), ${((Date.now() - started) / 1000).toFixed(1)}s`,
       );
+      if (verbose) report(snapshot);
     } catch (err) {
       failures++;
       console.warn(`  skipped: ${(err as Error).message}`);
