@@ -92,9 +92,17 @@ async function buildSet(entry: CatalogEntry): Promise<Snapshot> {
 /** A plain-text breakdown for eyeballing a snapshot in CI logs. */
 function report(snapshot: Snapshot) {
   const ev = computeEv(snapshot, DEFAULT_PARAMS);
+  // What a seller might actually net: ignore cards under $1, lose 13% to fees.
+  const net = computeEv(snapshot, { floor: 1, fees: 0.13 });
   const pad = (s: string, n: number) => s.slice(0, n).padEnd(n);
   const usd = (n: number | null) => (n == null ? "—" : `$${n.toFixed(2)}`);
-  console.log(`    layouts: ${snapshot.model.variants.length}, priced: ${(ev.pricedShare * 100).toFixed(1)}%`);
+  const box = snapshot.boxPrice.usd;
+  console.log(
+    `    packs/box: ${snapshot.product.packsPerBox}, layouts: ${snapshot.model.variants.length}, priced: ${(ev.pricedShare * 100).toFixed(1)}%`,
+  );
+  console.log(
+    `    market EV ${usd(ev.evBox)} (${box ? (box / ev.evBox).toFixed(2) : "?"}x) · cards >= $1 after 13% fees ${usd(net.evBox)} (${box ? (box / net.evBox).toFixed(2) : "?"}x)`,
+  );
   for (const s of ev.sheets) {
     console.log(
       `    ${pad(s.label, 34)} ${s.perPack.toFixed(2).padStart(5)}/pack  ${String(s.distinctCards).padStart(4)} cards  avg ${usd(s.avgValue).padStart(8)}  box ${usd(s.evBox).padStart(9)}  ${(s.share * 100).toFixed(1).padStart(5)}%`,
