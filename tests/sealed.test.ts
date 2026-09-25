@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PARAMS } from "../src/lib/engine/ev";
-import { classifySealed, playBoostersIn, sealedFrom, type TcgProduct } from "../src/lib/data/tcgcsv";
+import {
+  classifySealed,
+  fetchSealed,
+  findCommanderGroups,
+  playBoostersIn,
+  sealedFrom,
+  type TcgGroup,
+  type TcgProduct,
+} from "../src/lib/data/tcgcsv";
 import { settingsPhrase } from "../src/lib/verdict";
 
 const P = (productId: number, name: string, extra: Partial<TcgProduct> = {}): TcgProduct => ({ productId, name, ...extra });
@@ -94,5 +102,54 @@ describe("defaults and wording", () => {
     expect(settingsPhrase({ floor: 0.25, fees: 0.08 })).toBe("ignoring cards under 25¢, after 8% selling fees");
     expect(settingsPhrase({ floor: 2, fees: 0 })).toBe("ignoring cards under $2.00");
     expect(settingsPhrase({ floor: 0, fees: 0 })).toBe("at full market price");
+  });
+});
+
+describe("Commander companion groups", () => {
+  const groups: TcgGroup[] = [
+    { groupId: 1, name: "Duskmourn: House of Horror", abbreviation: "DSK", publishedOn: "2024-09-27T00:00:00" },
+    { groupId: 2, name: "Commander: Duskmourn", abbreviation: "DSC", publishedOn: "2024-09-27T00:00:00" },
+    { groupId: 3, name: "Commander: Bloomburrow", abbreviation: "BLC", publishedOn: "2024-08-02T00:00:00" },
+    { groupId: 4, name: "Duskmourn: House of Horror Promos", abbreviation: "PDSK", isSupplemental: true, publishedOn: "2024-09-27T00:00:00" },
+    { groupId: 5, name: "Commander: Duskmourn Anniversary", publishedOn: "2029-01-01T00:00:00" },
+  ];
+
+  it("pairs a set with its Commander group by name and release date", () => {
+    const found = findCommanderGroups(groups, groups[0], "Duskmourn: House of Horror", "2024-09-27");
+    expect(found.map((g) => g.groupId)).toEqual([2]);
+  });
+
+  it("treats any sealed deck in a Commander group as a precon", () => {
+    expect(classifySealed(P(1, "Endless Punishment Deck"), { commander: true })).toBe("Commander Deck");
+    expect(classifySealed(P(2, "Endless Punishment Deck"))).toBe("Other");
+    expect(classifySealed(P(3, "Duskmourn Commander Deck Display [Set of 4]"), { commander: true })).toBe("Commander Deck");
+    expect(classifySealed(P(4, "Valgavoth, Terror Eater", { extendedData: [{ name: "Rarity", value: "M" }] }), { commander: true })).toBeNull();
+  });
+
+  it("fetches the main set and its precons in one pass", async () => {
+    const json = (results: unknown) => new Response(JSON.stringify({ success: true, results }), { status: 200 });
+    const fake = async (url: string) => {
+      if (url.endsWith("/groups")) return json(groups);
+      if (url.endsWith("/1/products")) return json([P(10, "Duskmourn: House of Horror - Play Booster Display")]);
+      if (url.endsWith("/1/prices")) return json([{ productId: 10, marketPrice: 198.16, subTypeName: "Normal" }]);
+      if (url.endsWith("/2/products"))
+        return json([
+          P(20, "Commander: Duskmourn - Death Toll Commander Deck"),
+          P(21, "Endless Punishment Deck"),
+          P(22, "Valgavoth, Terror Eater", { extendedData: [{ name: "Number", value: "1" }] }),
+        ]);
+      if (url.endsWith("/2/prices"))
+        return json([
+          { productId: 20, marketPrice: 54.5, subTypeName: "Normal" },
+          { productId: 21, marketPrice: 61.25, subTypeName: "Normal" },
+          { productId: 22, marketPrice: 12, subTypeName: "Normal" },
+        ]);
+      return new Response("not found", { status: 404 });
+    };
+    const { box, products } = await fetchSealed("dsk", "Duskmourn: House of Horror", 36, "2024-09-27", fake);
+    expect(box?.usd).toBe(198.16);
+    const precons = products.filter((p) => p.kind === "Commander Deck");
+    expect(precons.map((p) => p.market)).toEqual([61.25, 54.5]);
+    expect(products.some((p) => p.name.startsWith("Valgavoth"))).toBe(false);
   });
 });

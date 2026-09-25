@@ -75,7 +75,7 @@ async function buildSet(entry: CatalogEntry): Promise<Snapshot> {
   if (!snapshot) throw new Error("no MTGJSON booster data and no rules config");
 
   try {
-    const { box, products } = await fetchSealed(entry.code, snapshot.name, entry.packsPerBox, tcgFetch);
+    const { box, products } = await fetchSealed(entry.code, snapshot.name, entry.packsPerBox, snapshot.releasedAt, tcgFetch);
     snapshot.sealed = products;
     if (products.length) snapshot.sources.push({ label: "TCGCSV — TCGplayer sealed product prices", url: "https://tcgcsv.com" });
     if (box) snapshot.boxPrice = box;

@@ -16,6 +16,8 @@ export interface TcgGroup {
   name: string;
   abbreviation?: string | null;
   isSupplemental?: boolean;
+  /** Release date, e.g. "2024-08-02T00:00:00". */
+  publishedOn?: string | null;
 }
 
 export interface TcgProduct {
@@ -44,6 +46,23 @@ export function findGroup(groups: TcgGroup[], code: string, name: string): TcgGr
   return byName.find((g) => !g.isSupplemental) ?? byName[0] ?? null;
 }
 
+/**
+ * TCGplayer files a set's Commander precons under a companion group such as
+ * "Commander: Bloomburrow". Match on the set's leading name and a release date
+ * within two months, so "Commander: Duskmourn" pairs with "Duskmourn: House of Horror".
+ */
+export function findCommanderGroups(groups: TcgGroup[], main: TcgGroup, setName: string, releasedAt: string): TcgGroup[] {
+  const key = setName.split(":")[0].trim().toLowerCase();
+  const released = Date.parse(releasedAt.slice(0, 10));
+  const WINDOW = 60 * 86_400_000;
+  return groups.filter((g) => {
+    if (g.groupId === main.groupId || !/commander/i.test(g.name)) return false;
+    if (!g.name.toLowerCase().includes(key)) return false;
+    const published = g.publishedOn ? Date.parse(g.publishedOn.slice(0, 10)) : Number.NaN;
+    return Number.isNaN(published) || Number.isNaN(released) || Math.abs(published - released) <= WINDOW;
+  });
+}
+
 /** The Play Booster display (the 30- or 36-pack box), not a case, bundle, or single pack. */
 export function findPlayBoxProduct(products: TcgProduct[]): TcgProduct | null {
   const candidates = products.filter(
@@ -62,8 +81,11 @@ function isSingle(p: TcgProduct): boolean {
 // Other-language printings: priced against English singles they'd be misleading.
 const FOREIGN = /\((japanese|jp|chinese|korean|german|french|italian|spanish|portuguese|russian)\)|\bjapanese\b/i;
 
-/** What kind of sealed product a TCGplayer listing is, or null for singles and non-product listings. */
-export function classifySealed(p: TcgProduct): SealedKind | null {
+/**
+ * What kind of sealed product a TCGplayer listing is, or null for singles and non-product
+ * listings. In a Commander companion group, any sealed deck is a Commander precon.
+ */
+export function classifySealed(p: TcgProduct, opts: { commander?: boolean } = {}): SealedKind | null {
   const n = p.name;
   if (isSingle(p)) return null;
   if (/\b(token|art card|art series|emblem|oversized|checklist|code card)\b/i.test(n)) return null;
@@ -85,7 +107,7 @@ export function classifySealed(p: TcgProduct): SealedKind | null {
   if (/gift bundle/i.test(n)) return "Gift Bundle";
   if (/bundle/i.test(n)) return "Bundle";
   if (/prerelease/i.test(n)) return "Prerelease Pack";
-  if (/commander deck/i.test(n)) return "Commander Deck";
+  if (/commander deck/i.test(n) || (opts.commander && /\bdecks?\b/i.test(n))) return "Commander Deck";
   if (/starter (kit|deck|collection)|beginner box/i.test(n)) return "Starter Kit";
   if (/scene box/i.test(n)) return "Scene Box";
   if (/jumpstart/i.test(n)) return "Jumpstart";
@@ -137,11 +159,15 @@ export interface SealedResult {
   products: SealedProduct[];
 }
 
-/** Every sealed product TCGplayer lists for the set, with today's prices, plus the Play Booster display price. */
+/**
+ * Every sealed product TCGplayer lists for the set and its Commander companion set,
+ * with today's prices, plus the Play Booster display price.
+ */
 export async function fetchSealed(
   code: string,
   name: string,
   packsPerBox: number,
+  releasedAt: string,
   fetchImpl: FetchLike = (u, i) => fetch(u, i),
 ): Promise<SealedResult> {
   const get = async <T>(url: string): Promise<T[]> => {
@@ -149,27 +175,47 @@ export async function fetchSealed(
     if (!res.ok) throw new Error(`TCGCSV ${res.status} for ${url}`);
     return ((await res.json()) as Envelope<T>).results ?? [];
   };
-  const group = findGroup(await get<TcgGroup>(`${TCGCSV}/${MAGIC}/groups`), code, name);
+  const groups = await get<TcgGroup>(`${TCGCSV}/${MAGIC}/groups`);
+  const group = findGroup(groups, code, name);
   if (!group) return { box: null, products: [] };
-  const [products, prices] = await Promise.all([
-    get<TcgProduct>(`${TCGCSV}/${MAGIC}/${group.groupId}/products`),
-    get<TcgPrice>(`${TCGCSV}/${MAGIC}/${group.groupId}/prices`),
-  ]);
-  return sealedFrom(products, prices, packsPerBox);
+  const load = (g: TcgGroup) =>
+    Promise.all([get<TcgProduct>(`${TCGCSV}/${MAGIC}/${g.groupId}/products`), get<TcgPrice>(`${TCGCSV}/${MAGIC}/${g.groupId}/prices`)]);
+
+  const [products, prices] = await load(group);
+  const result = sealedFrom(products, prices, packsPerBox);
+  for (const commander of findCommanderGroups(groups, group, name, releasedAt)) {
+    try {
+      const [cp, cx] = await load(commander);
+      result.products.push(...toSealed(cp, cx, packsPerBox, true));
+    } catch {
+      // A missing companion group shouldn't cost us the main set's prices.
+    }
+  }
+  result.products.sort(bySealedOrder);
+  return result;
 }
 
-export function sealedFrom(products: TcgProduct[], prices: TcgPrice[], packsPerBox: number): SealedResult {
+function priceIndex(prices: TcgPrice[]): Map<number, TcgPrice> {
   const priceOf = new Map<number, TcgPrice>();
   for (const p of prices) {
     // Sealed product is priced under "Normal"; keep the first row we see otherwise.
     if (!priceOf.has(p.productId) || p.subTypeName === "Normal") priceOf.set(p.productId, p);
   }
-  const asOf = new Date().toISOString();
-  const url = (p: TcgProduct) => p.url ?? `https://www.tcgplayer.com/product/${p.productId}`;
+  return priceOf;
+}
 
+const productUrl = (p: TcgProduct) => p.url ?? `https://www.tcgplayer.com/product/${p.productId}`;
+
+function bySealedOrder(a: SealedProduct, b: SealedProduct): number {
+  return KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || (b.market ?? 0) - (a.market ?? 0) || a.name.localeCompare(b.name);
+}
+
+/** Sealed products in one TCGplayer group. `commander` marks a Commander companion group. */
+export function toSealed(products: TcgProduct[], prices: TcgPrice[], packsPerBox: number, commander = false): SealedProduct[] {
+  const priceOf = priceIndex(prices);
   const sealed: SealedProduct[] = [];
   for (const p of products) {
-    const kind = classifySealed(p);
+    const kind = classifySealed(p, { commander });
     if (!kind) continue;
     const row = priceOf.get(p.productId);
     sealed.push({
@@ -179,13 +225,18 @@ export function sealedFrom(products: TcgProduct[], prices: TcgPrice[], packsPerB
       market: row?.marketPrice ?? row?.midPrice ?? null,
       low: row?.lowPrice ?? null,
       packs: playBoostersIn(kind, packsPerBox, p.name),
-      url: url(p),
+      url: productUrl(p),
       image: p.imageUrl ?? null,
     });
   }
-  sealed.sort(
-    (a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || (b.market ?? 0) - (a.market ?? 0) || a.name.localeCompare(b.name),
-  );
+  return sealed.sort(bySealedOrder);
+}
+
+export function sealedFrom(products: TcgProduct[], prices: TcgPrice[], packsPerBox: number): SealedResult {
+  const priceOf = priceIndex(prices);
+  const asOf = new Date().toISOString();
+  const url = productUrl;
+  const sealed = toSealed(products, prices, packsPerBox);
 
   const display = findPlayBoxProduct(products);
   const row = display ? priceOf.get(display.productId) : undefined;
