@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Crack or Keep — What a Magic booster box is worth once you open it</title>
+    <meta
+      name="description"
+      content="Expected value of Magic: The Gathering Play Booster boxes, priced daily from TCGplayer market data. Box price against what's inside, set by set, with ten thousand simulated boxes."
+    />
+    <meta property="og:title" content="Crack or Keep" />
+    <meta property="og:description" content="What a Magic booster box is worth once you open it. Priced daily." />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script>
+      // Apply a saved theme before first paint so there's no flash.
+      (function () {
+        try {
+          var t = localStorage.getItem("ck-theme");
+          if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+node_modules
+dist
+*.local
+.DS_Store
+coverage
+test-results
+playwright-report
+# Price snapshots are rebuilt by `npm run data` and in CI; they are not committed.
+public/data/*
+!public/data/.gitkeep

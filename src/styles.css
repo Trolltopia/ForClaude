@@ -1,0 +1,272 @@
+@import "tailwindcss";
+@import "@fontsource-variable/schibsted-grotesk/wght.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+/* Display and text serifs are instanced + subset by scripts/fonts/build_fonts.py. */
+@font-face {
+  font-family: "CK Display";
+  src: url("./assets/fonts/display.woff2") format("woff2");
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CK Display";
+  src: url("./assets/fonts/display-italic.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CK Text";
+  src: url("./assets/fonts/text.woff2") format("woff2");
+  font-weight: 400 650;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CK Text";
+  src: url("./assets/fonts/text-italic.woff2") format("woff2");
+  font-weight: 400 650;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Tokens — see DESIGN.md. Light is the broadsheet; dark is its negative. */
+:root {
+  color-scheme: light;
+  --canvas: #ffffff;
+  --canvas-soft: #f5f5f5;
+  --ink: #000000;
+  --ink-soft: #1a1a1a;
+  --body: #707070;
+  --muted: #8f8f8f;
+  --hairline: #e0e0e0;
+  --rule: #000000;
+  --link: #057dbc;
+  --accent: #057dbc;
+  --deemph: #c7c7c7;
+  --keep: #e34948;
+  --good-text: #006300;
+  --bad-text: #c8102e;
+  --r-common: #1a1a1a;
+  --r-uncommon: #6d8a96;
+  --r-rare: #a88532;
+  --r-mythic: #d4501e;
+  --r-special: #7b4fa6;
+  --card-back: #e9e6df;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --canvas: #0f0f0f;
+    --canvas-soft: #181818;
+    --ink: #f5f5f5;
+    --ink-soft: #e0e0e0;
+    --body: #a3a3a3;
+    --muted: #7a7a7a;
+    --hairline: #2a2a2a;
+    --rule: #f5f5f5;
+    --link: #4fa8e0;
+    --accent: #4fa8e0;
+    --deemph: #3d3d3d;
+    --keep: #e66767;
+    --good-text: #3fbf5f;
+    --bad-text: #ff7a7a;
+    --r-common: #e6e6e6;
+    --r-uncommon: #9fb6c1;
+    --r-rare: #d6ae4f;
+    --r-mythic: #f0703f;
+    --r-special: #b08fd8;
+    --card-back: #1f1d1a;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #0f0f0f;
+  --canvas-soft: #181818;
+  --ink: #f5f5f5;
+  --ink-soft: #e0e0e0;
+  --body: #a3a3a3;
+  --muted: #7a7a7a;
+  --hairline: #2a2a2a;
+  --rule: #f5f5f5;
+  --link: #4fa8e0;
+  --accent: #4fa8e0;
+  --deemph: #3d3d3d;
+  --keep: #e66767;
+  --good-text: #3fbf5f;
+  --bad-text: #ff7a7a;
+  --r-common: #e6e6e6;
+  --r-uncommon: #9fb6c1;
+  --r-rare: #d6ae4f;
+  --r-mythic: #f0703f;
+  --r-special: #b08fd8;
+  --card-back: #1f1d1a;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-canvas-soft: var(--canvas-soft);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-body: var(--body);
+  --color-muted: var(--muted);
+  --color-hairline: var(--hairline);
+  --color-rule: var(--rule);
+  --color-link: var(--link);
+  --color-accent: var(--accent);
+  --color-deemph: var(--deemph);
+  --color-keep: var(--keep);
+  --color-good: var(--good-text);
+  --color-bad: var(--bad-text);
+  --color-r-common: var(--r-common);
+  --color-r-uncommon: var(--r-uncommon);
+  --color-r-rare: var(--r-rare);
+  --color-r-mythic: var(--r-mythic);
+  --color-r-special: var(--r-special);
+  --color-card-back: var(--card-back);
+
+  --font-display: "CK Display", "Times New Roman", Georgia, serif;
+  --font-serif: "CK Text", Georgia, "Times New Roman", serif;
+  --font-sans: "Schibsted Grotesk Variable", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --radius-none: 0px;
+}
+
+@theme {
+  --breakpoint-xs: 30rem;
+  --container-page: 84rem;
+}
+
+@layer base {
+  html {
+    background: var(--canvas);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background: var(--ink);
+    color: var(--canvas);
+  }
+  :focus-visible {
+    outline: 2px solid var(--link);
+    outline-offset: 2px;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer components {
+  /* Mono kicker above headlines, as in the magazine. */
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 16px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.012em;
+    font-feature-settings: "lnum" 1, "pnum" 1;
+  }
+  /* Figures that line up in columns. Set in the mono face: Schibsted's tabular
+     digits leave a gap around every "1". Standalone numbers stay proportional. */
+  .num {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .prose-link {
+    color: var(--link);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .prose-link:hover {
+    text-decoration-thickness: 2px;
+  }
+  /* Underline that grows from the left on hover — used for nav and inline links. */
+  .hover-rule {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 180ms ease;
+  }
+  .hover-rule:hover,
+  .hover-rule:focus-visible {
+    background-size: 100% 1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Scryfall set symbols are black SVGs; flip them for the dark theme. */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .set-icon {
+    filter: invert(1);
+  }
+}
+:root[data-theme="dark"] .set-icon {
+  filter: invert(1);
+}
+
+/* A light sweep across foil cards on hover, the way a real foil catches a lamp. */
+.foil-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.28) 42%,
+    rgba(255, 120, 220, 0.16) 48%,
+    rgba(120, 220, 255, 0.18) 54%,
+    transparent 66%
+  );
+  background-size: 250% 100%;
+  background-position: 100% 0;
+  mix-blend-mode: screen;
+  transition: background-position 700ms ease;
+}
+.group:hover .foil-sheen,
+.group:focus-visible .foil-sheen {
+  background-position: 0% 0;
+}
