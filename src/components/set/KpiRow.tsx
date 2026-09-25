@@ -39,12 +39,15 @@ export function KpiRow({
   boxPrice,
   sim,
   simRunning,
+  provisional = false,
 }: {
   evBox: number;
   evPack: number;
   boxPrice: number | null;
   sim: SimulationSummary | null;
   simRunning: boolean;
+  /** Preorder prices: show the gap to the box without calling it good or bad. */
+  provisional?: boolean;
 }) {
   const r = boxPrice && evBox > 0 ? boxPrice / evBox : null;
   const diff = boxPrice ? evBox - boxPrice : null;
@@ -61,8 +64,8 @@ export function KpiRow({
             {diff != null && (
               <>
                 {" · "}
-                <span className={diff >= 0 ? "text-good" : "text-bad"}>
-                  {diff >= 0 ? "▲" : "▼"} {signedMoney(diff)} vs. the box
+                <span className={provisional ? "" : diff >= 0 ? "text-good" : "text-bad"}>
+                  {diff >= 0 ? "▲" : "▼"} {signedMoney(diff)} vs. the box{provisional ? " (preorder)" : ""}
                 </span>
               </>
             )}

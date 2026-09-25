@@ -14,7 +14,7 @@ import { useSnapshot } from "@/hooks/useSnapshot";
 import { useQueryNumbers } from "@/hooks/useQueryState";
 import { SIM_BOXES, useSimulation } from "@/hooks/useSimulation";
 import { computeEv, type EvParams } from "@/lib/engine/ev";
-import { count, money, percent } from "@/lib/format";
+import { count, isReleased, money, percent } from "@/lib/format";
 import { catalogEntry } from "@/sets/catalog";
 
 const QUERY_KEYS = ["box", "floor", "fees"] as const;
@@ -68,7 +68,14 @@ export function SetPage({ code }: { code: string }) {
               onFees={(v) => setQuery({ fees: v === 0 ? null : v })}
               onReset={() => setQuery({ box: null, floor: null, fees: null })}
             />
-            <KpiRow evBox={ev.evBox} evPack={ev.evPack} boxPrice={boxPrice} sim={sim} simRunning={running} />
+            <KpiRow
+              evBox={ev.evBox}
+              evPack={ev.evPack}
+              boxPrice={boxPrice}
+              sim={sim}
+              simRunning={running}
+              provisional={!isReleased(snapshot.releasedAt)}
+            />
             {ev.pricedShare < 0.95 && (
               <p className="mt-4 text-[13px] text-body">
                 {percent(1 - ev.pricedShare)} of the cards you can open have no market price yet and count as zero.

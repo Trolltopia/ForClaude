@@ -7,7 +7,7 @@ import { VERDICT_TITLE, verdictFor, verdictLine } from "@/lib/verdict";
 export function SetHeader({ snapshot, boxPrice, evBox }: { snapshot: Snapshot; boxPrice: number | null; evBox: number }) {
   const released = isReleased(snapshot.releasedAt);
   const r = boxPrice && evBox > 0 ? boxPrice / evBox : null;
-  const verdict = verdictFor(r);
+  const verdict = verdictFor(r, snapshot.releasedAt);
   const cards = snapshot.product.cardsPerPack;
 
   return (
@@ -30,18 +30,21 @@ export function SetHeader({ snapshot, boxPrice, evBox }: { snapshot: Snapshot; b
           ) : (
             <>On today&rsquo;s prices, the cards in a box are worth {money(evBox)} on average. Enter a box price to compare.</>
           )}
-          {!released && " It isn’t out yet, so these are preorder prices, and preorder prices move fast."}
         </p>
       </div>
 
       {verdict && boxPrice && (
         <aside
-          className={cn("flex flex-col justify-between self-start bg-ink p-6 text-canvas", "lg:mt-8")}
+          className={cn(
+            "flex flex-col justify-between self-start p-6 lg:mt-8",
+            // A provisional call gets an outline instead of the solid block.
+            verdict === "early" ? "border-2 border-ink" : "bg-ink text-canvas",
+          )}
           aria-label="Verdict"
         >
           <p className="kicker opacity-70">The verdict</p>
           <p className="display mt-2 text-[44px] leading-none">{VERDICT_TITLE[verdict]}</p>
-          <p className="mt-4 font-serif text-[16px] leading-snug opacity-90">{verdictLine(boxPrice, evBox)}</p>
+          <p className="mt-4 font-serif text-[16px] leading-snug opacity-90">{verdictLine(boxPrice, evBox, snapshot.releasedAt)}</p>
         </aside>
       )}
     </header>

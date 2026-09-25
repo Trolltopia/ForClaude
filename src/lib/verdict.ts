@@ -1,10 +1,15 @@
-import { money, percent, ratio } from "./format";
+import { date, isReleased, money, percent, ratio } from "./format";
 
-export type Verdict = "crack" | "toss-up" | "keep";
+export type Verdict = "crack" | "toss-up" | "keep" | "early";
 
-/** Within 5% either way, opening and not opening are the same bet. */
-export function verdictFor(r: number | null): Verdict | null {
+/**
+ * Within 5% either way, opening and not opening are the same bet. Before release,
+ * singles prices come from a handful of preorder sales and run far above where they
+ * settle, so we don't call it at all.
+ */
+export function verdictFor(r: number | null, releasedAt?: string): Verdict | null {
   if (r == null || !Number.isFinite(r)) return null;
+  if (releasedAt && !isReleased(releasedAt)) return "early";
   if (r <= 0.95) return "crack";
   if (r >= 1.05) return "keep";
   return "toss-up";
@@ -14,11 +19,15 @@ export const VERDICT_TITLE: Record<Verdict, string> = {
   crack: "Crack it",
   "toss-up": "Toss-up",
   keep: "Keep it sealed",
+  early: "Too early to call",
 };
 
-/** One plain sentence explaining the verdict. `r` is box price ÷ expected value. */
-export function verdictLine(price: number, ev: number): string {
+/** One plain sentence explaining the verdict. */
+export function verdictLine(price: number, ev: number, releasedAt?: string): string {
   const r = price / ev;
+  if (releasedAt && !isReleased(releasedAt)) {
+    return `It isn’t out until ${date(releasedAt)}. Preorder singles prices rest on a handful of early sales and usually fall after launch, so read this expected value as a ceiling, not a forecast.`;
+  }
   if (r <= 0.95) {
     return `The cards inside are worth ${percent(ev / price - 1)} more than the box — about ${money(ev - price)} a box, on average.`;
   }

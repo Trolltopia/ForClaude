@@ -1,6 +1,6 @@
 import { Link, useRoute } from "wouter";
 import { useSnapshotIndex } from "@/hooks/useSnapshotIndex";
-import { ratio } from "@/lib/format";
+import { isReleased, ratio } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CATALOG } from "@/sets/catalog";
 
@@ -25,14 +25,23 @@ export function MarketStrip() {
                   "flex h-10 items-center gap-2 border-r border-hairline px-3 font-mono text-[12px] first:pl-0 hover:bg-canvas-soft",
                   active && "bg-ink text-canvas hover:bg-ink",
                 )}
-                title={`${entry.name}${r != null ? `: box costs ${ratio(r)} its expected value` : ""}`}
+                title={`${entry.name}${r != null ? `: box costs ${ratio(r)} its expected value` : ""}${isReleased(entry.releasedAt) ? "" : " (preorder prices)"}`}
               >
                 <span className="font-medium uppercase">{entry.code}</span>
                 <span className="num">{ratio(r)}</span>
                 {r != null && (
                   <span
                     aria-hidden="true"
-                    className={cn("size-1.5", r <= 1 ? "bg-accent" : "bg-keep", active && "outline outline-canvas")}
+                    className={cn(
+                      "size-1.5",
+                      // Hollow while the set is still on preorder: the number is provisional.
+                      isReleased(entry.releasedAt)
+                        ? r <= 1
+                          ? "bg-accent"
+                          : "bg-keep"
+                        : cn("border", r <= 1 ? "border-accent" : "border-keep"),
+                      active && "outline outline-canvas",
+                    )}
                   />
                 )}
               </Link>

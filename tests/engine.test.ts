@@ -158,3 +158,14 @@ describe("simulation", () => {
     expect(s.bins[0].from).toBeLessThanOrEqual(0);
   });
 });
+
+describe("verdict", () => {
+  it("calls crack, toss-up and keep around 1.00×, and holds off before release", async () => {
+    const { verdictFor } = await import("../src/lib/verdict");
+    expect(verdictFor(0.8, "2020-01-01")).toBe("crack");
+    expect(verdictFor(1.02, "2020-01-01")).toBe("toss-up");
+    expect(verdictFor(1.3, "2020-01-01")).toBe("keep");
+    expect(verdictFor(0.2, "2999-01-01")).toBe("early");
+    expect(verdictFor(null)).toBeNull();
+  });
+});

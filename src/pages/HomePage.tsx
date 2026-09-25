@@ -12,7 +12,8 @@ import { VERDICT_TITLE, verdictFor } from "@/lib/verdict";
 import { CATALOG } from "@/sets/catalog";
 
 function headline(s: SetSummary): string {
-  const v = verdictFor(s.ratio);
+  const v = verdictFor(s.ratio, s.releasedAt);
+  if (v === "early") return `${s.name}: too early to call`;
   if (v === "crack") return `${s.name} boxes are worth opening`;
   if (v === "keep") return `Keep ${s.name} sealed`;
   return `${s.name} is a coin flip`;
@@ -31,7 +32,8 @@ function LeadStory({ s }: { s: SetSummary }) {
         <p className="mt-6 max-w-2xl font-serif text-[19px] leading-[1.55] text-ink-soft sm:text-[21px]">
           A {s.packsPerBox}-pack box costs about {money(price)}. On this morning&rsquo;s prices the cards inside average{" "}
           {money(s.evBox)}, so every dollar spent buys {money(price ? s.evBox / price : null)} of cards.
-          {!released && " The set isn’t out yet: these are preorder prices, and they tend to fall after launch."}
+          {!released &&
+            " The set isn’t out yet, and preorder singles prices rest on a handful of early sales. They nearly always fall after launch, so treat this as a ceiling."}
         </p>
 
         <dl className="mt-10 grid grid-cols-3 border-t border-ink">
@@ -121,7 +123,7 @@ function Board({ sets }: { sets: SetSummary[] }) {
         </thead>
         <tbody>
           {rows.map(({ entry, s }) => {
-            const v = verdictFor(s?.ratio ?? null);
+            const v = verdictFor(s?.ratio ?? null, s?.releasedAt);
             return (
               <tr
                 key={entry.code}
@@ -203,7 +205,8 @@ export function HomePage() {
   }, []);
 
   const lead = index?.sets.find((s) => s.evBox > 0) ?? null;
-  const priced = index?.sets.filter((s) => s.ratio != null) ?? [];
+  // Preorder prices would win this every time; only count sets that are out.
+  const priced = index?.sets.filter((s) => s.ratio != null && isReleased(s.releasedAt)) ?? [];
   const best = [...priced].sort((a, b) => (a.ratio ?? 9) - (b.ratio ?? 9))[0];
 
   return (
