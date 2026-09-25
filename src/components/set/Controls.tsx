@@ -4,16 +4,47 @@ import { Slider } from "@/components/ui/slider";
 import { InfoTip } from "@/components/ui/tooltip";
 import { date, money } from "@/lib/format";
 import type { BoxPrice } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
-export const FLOORS = ["0", "0.25", "0.5", "1", "2", "5"] as const;
-const FLOOR_LABEL: Record<(typeof FLOORS)[number], string> = {
-  "0": "Every card",
-  "0.25": "25¢",
-  "0.5": "50¢",
-  "1": "$1",
-  "2": "$2",
-  "5": "$5",
-};
+/** Bulk-floor presets in dollars; any other amount goes in the custom box. */
+export const FLOOR_PRESETS = [0, 0.1, 0.25, 0.5, 1, 2] as const;
+const floorLabel = (v: number) => (v === 0 ? "Nothing" : v < 1 ? `${Math.round(v * 100)}¢` : `$${v}`);
+
+function FloorInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const custom = !FLOOR_PRESETS.includes(value as (typeof FLOOR_PRESETS)[number]);
+  const [text, setText] = useState(custom ? String(value) : "");
+  useEffect(() => setText(custom ? String(value) : ""), [value, custom]);
+  const commit = () => {
+    const n = Number(text.replace(/[$¢\s]/g, ""));
+    if (text.trim() === "") return;
+    if (Number.isFinite(n) && n >= 0) onChange(Math.min(1000, Math.round(n * 100) / 100));
+  };
+  return (
+    <label
+      className={cn(
+        "flex h-8 w-[76px] items-center border border-ink bg-canvas focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-link",
+        custom && "bg-ink text-canvas",
+      )}
+    >
+      <span className={cn("pl-2 text-[13px] font-semibold", custom ? "text-canvas" : "text-body")}>$</span>
+      <input
+        inputMode="decimal"
+        type="number"
+        min={0}
+        step="0.05"
+        placeholder="other"
+        aria-label="Custom minimum card price in dollars"
+        className="h-full w-full bg-transparent px-1 text-[13px] font-semibold outline-none placeholder:font-normal placeholder:text-muted"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+      />
+    </label>
+  );
+}
 
 function PriceInput({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
   const [text, setText] = useState(value != null ? value.toFixed(2) : "");
@@ -53,19 +84,24 @@ export function Controls({
   onFees,
   onReset,
   packsPerBox,
+  defaultFees,
 }: {
   packsPerBox: number;
   boxPrice: number | null;
   marketPrice: BoxPrice;
   overridden: boolean;
   onBoxPrice: (v: number | null) => void;
-  floor: string;
-  onFloor: (v: (typeof FLOORS)[number]) => void;
+  /** Minimum card price in dollars; cheaper cards count as zero. */
+  floor: number;
+  onFloor: (v: number) => void;
+  /** Selling fees in percent. */
   fees: number;
   onFees: (v: number) => void;
   onReset: () => void;
+  defaultFees: number;
 }) {
-  const changed = overridden || floor !== "0" || fees !== 0;
+  const changed = overridden || floor !== 0 || fees !== defaultFees;
+  const preset = FLOOR_PRESETS.find((f) => f === floor);
   return (
     <div className="border-y border-ink bg-canvas lg:sticky lg:top-0 lg:z-30">
       <div className="grid gap-x-10 gap-y-5 py-3.5 md:grid-cols-[auto_auto_minmax(200px,1fr)] md:items-end">
@@ -107,33 +143,38 @@ export function Controls({
 
         <div>
           <div className="mb-1.5 flex items-center gap-2 font-sans text-[13px] font-bold">
-            Count cards worth at least
+            Ignore cards under
             <InfoTip>
-              Bulk commons and uncommons are hard to sell one at a time. Set a floor and anything cheaper counts as zero — a
-              truer picture of what you can actually turn into cash.
+              Bulk commons and uncommons are hard to sell one at a time. Anything priced below this counts as zero — a truer
+              picture of what you can actually turn into cash. Pick a preset or type any amount.
             </InfoTip>
           </div>
-          <Segmented
-            label="Minimum card price to count"
-            value={floor as (typeof FLOORS)[number]}
-            onChange={onFloor}
-            options={FLOORS.map((f) => ({ value: f, label: FLOOR_LABEL[f] }))}
-          />
+          <div className="flex items-center gap-2">
+            <Segmented
+              label="Ignore cards priced under"
+              value={preset != null ? String(preset) : ""}
+              onChange={(v) => onFloor(Number(v))}
+              options={FLOOR_PRESETS.map((f) => ({ value: String(f), label: floorLabel(f) }))}
+            />
+            <FloorInput value={floor} onChange={onFloor} />
+          </div>
         </div>
 
         <div className="min-w-0">
           <div className="mb-1.5 flex items-center justify-between gap-2 font-sans text-[13px] font-bold">
             <span className="flex items-center gap-2">
-              Selling costs
+              Selling fees per card
               <InfoTip>
-                Marketplace fees, payment processing and postage come off every sale. TCGplayer sellers typically lose 12–15% of
-                the sale price; 0% shows raw market value.
+                Marketplace and payment fees come off every card you sell. {defaultFees}% is the default; set 0% to see raw market
+                value, or raise it to cover postage.
               </InfoTip>
             </span>
-            <span className="font-semibold">{fees}%</span>
+            <span className="font-semibold">
+              {fees}% <span className="font-normal text-body">· you keep {Math.round(100 - fees)}¢ of each $1</span>
+            </span>
           </div>
           <div className="flex h-11 items-center gap-4">
-            <Slider aria-label="Selling costs in percent" min={0} max={30} step={1} value={[fees]} onValueChange={([v]) => onFees(v)} />
+            <Slider aria-label="Selling fees in percent" min={0} max={30} step={1} value={[fees]} onValueChange={([v]) => onFees(v)} />
             {changed && (
               <button type="button" onClick={onReset} className="kicker shrink-0 text-body hover:text-ink">
                 Reset

@@ -201,6 +201,7 @@ export function summarise(snapshot: Snapshot): SetSummary {
         }
       : null,
     modelSource: snapshot.modelSource.kind,
+    params: { ...DEFAULT_PARAMS },
   };
 }
 

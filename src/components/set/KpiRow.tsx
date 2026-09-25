@@ -56,7 +56,7 @@ export function KpiRow({
       <Tile
         hero
         label="Expected value"
-        info="The average value of the cards in a box, over every box that could be opened. A single box can land far from it."
+        info="The average value of the cards in a box at your settings: cards under your floor count as zero and every card loses the selling fee. A single box can land far from it."
         value={money(evBox)}
         foot={
           <>

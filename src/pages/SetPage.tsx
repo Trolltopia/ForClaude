@@ -3,8 +3,9 @@ import { Link } from "wouter";
 import { Section } from "@/components/Section";
 import { CardTable } from "@/components/set/CardTable";
 import { ChaseGrid } from "@/components/set/ChaseGrid";
-import { Controls, FLOORS } from "@/components/set/Controls";
+import { Controls } from "@/components/set/Controls";
 import { KpiRow } from "@/components/set/KpiRow";
+import { SealedSection, SealedUnavailable } from "@/components/set/SealedSection";
 import { ModelDetails } from "@/components/set/ModelDetails";
 import { SetHeader } from "@/components/set/SetHeader";
 import { SimulationSection } from "@/components/set/SimulationSection";
@@ -13,7 +14,7 @@ import { Masthead } from "@/components/site/Masthead";
 import { useSnapshot } from "@/hooks/useSnapshot";
 import { useQueryNumbers } from "@/hooks/useQueryState";
 import { SIM_BOXES, useSimulation } from "@/hooks/useSimulation";
-import { computeEv, type EvParams } from "@/lib/engine/ev";
+import { computeEv, DEFAULT_FEES, type EvParams } from "@/lib/engine/ev";
 import { count, isReleased, money, percent } from "@/lib/format";
 import { catalogEntry } from "@/sets/catalog";
 
@@ -24,9 +25,10 @@ export function SetPage({ code }: { code: string }) {
   const { status, snapshot, live, refreshing, error, refresh } = useSnapshot(code);
   const [query, setQuery] = useQueryNumbers(QUERY_KEYS);
 
-  const floor = FLOORS.find((f) => Number(f) === query.floor) ?? "0";
-  const fees = Math.max(0, Math.min(30, query.fees ?? 0));
-  const params = useMemo<EvParams>(() => ({ floor: Number(floor), fees: fees / 100 }), [floor, fees]);
+  const defaultFees = Math.round(DEFAULT_FEES * 100);
+  const floor = Math.max(0, Math.min(1000, query.floor ?? 0));
+  const fees = Math.max(0, Math.min(30, query.fees ?? defaultFees));
+  const params = useMemo<EvParams>(() => ({ floor, fees: fees / 100 }), [floor, fees]);
   const marketPrice = snapshot?.boxPrice ?? { usd: entry?.boxEstimate ?? null, source: "estimate" as const };
   const boxPrice = query.box ?? marketPrice.usd;
 
@@ -55,7 +57,7 @@ export function SetPage({ code }: { code: string }) {
                 the box price is an estimate until you enter your own.
               </p>
             )}
-            <SetHeader snapshot={snapshot} boxPrice={boxPrice} evBox={ev.evBox} />
+            <SetHeader snapshot={snapshot} boxPrice={boxPrice} evBox={ev.evBox} params={params} />
 
             <Controls
               packsPerBox={snapshot.product.packsPerBox}
@@ -64,9 +66,10 @@ export function SetPage({ code }: { code: string }) {
               overridden={query.box != null}
               onBoxPrice={(v) => setQuery({ box: v })}
               floor={floor}
-              onFloor={(v) => setQuery({ floor: v === "0" ? null : Number(v) })}
+              onFloor={(v) => setQuery({ floor: v === 0 ? null : v })}
               fees={fees}
-              onFees={(v) => setQuery({ fees: v === 0 ? null : v })}
+              onFees={(v) => setQuery({ fees: v === defaultFees ? null : v })}
+              defaultFees={defaultFees}
               onReset={() => setQuery({ box: null, floor: null, fees: null })}
             />
             <KpiRow
@@ -100,8 +103,34 @@ export function SetPage({ code }: { code: string }) {
             </Section>
 
             <Section
-              id="chase"
+              id="sealed"
               number="02"
+              rail="Sealed"
+              title="Sealed product"
+              dek={
+                <>
+                  What the set sells for unopened, from single packs to cases. Anything made of Play Boosters is priced per booster
+                  against the <strong className="font-semibold text-ink">{money(ev.evPack)}</strong> an average pack is worth at your
+                  settings.
+                </>
+              }
+            >
+              {snapshot.sealed?.length ? (
+                <SealedSection
+                  products={snapshot.sealed}
+                  evPack={ev.evPack}
+                  packsPerBox={snapshot.product.packsPerBox}
+                  boxPrice={boxPrice}
+                  onUseAsBox={(v) => setQuery({ box: v })}
+                />
+              ) : (
+                <SealedUnavailable />
+              )}
+            </Section>
+
+            <Section
+              id="chase"
+              number="03"
               rail="Chase cards"
               title="The cards that pay for the box"
               dek="A card worth $80 that shows up once in forty boxes adds two dollars to each one. These are the cards the average box leans on."
@@ -111,7 +140,7 @@ export function SetPage({ code }: { code: string }) {
 
             <Section
               id="simulation"
-              number="03"
+              number="04"
               rail="Simulation"
               title="Ten thousand boxes"
               dek={
@@ -129,13 +158,13 @@ export function SetPage({ code }: { code: string }) {
               <SimulationSection snapshot={snapshot} params={params} boxPrice={boxPrice} sim={sim} running={running} />
             </Section>
 
-            <Section id="cards" number="04" rail="Card list" title="Every card you can open" dek="Sorted by what each card adds to an average box. Hover a name to see the card.">
+            <Section id="cards" number="05" rail="Card list" title="Every card you can open" dek="Sorted by what each card adds to an average box. “You keep” is the price after your selling fees; cards under your floor show as bulk. Hover a name to see the card.">
               <CardTable cards={ev.cards} />
             </Section>
 
             <Section
               id="model"
-              number="05"
+              number="06"
               rail="Collation"
               title="How the box is modelled"
               dek={

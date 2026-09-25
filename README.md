@@ -12,8 +12,14 @@ with **Reality Fracture (FRA)**.
 
 - **Verdict and headline numbers**: expected value per box and pack, price ÷ value, the
   share of boxes that beat the price, and the median box.
-- **Your numbers**: type your own box price, ignore bulk below a floor ($0.25–$5), and
-  subtract selling costs. Settings live in the URL, so a configured page can be shared.
+- **Your numbers**: type your own box price, ignore cards under a floor (presets from 10¢
+  to $2, or any amount), and take selling fees off every card (8% by default; the card
+  table shows what you keep per card). Settings live in the URL, so a configured page can
+  be shared.
+- **Sealed product**: every sealed item TCGplayer lists for the set (packs, displays,
+  cases, bundles, Collector Boosters, decks) with market and lowest-listing prices. Play
+  Booster products are priced per booster against an average pack, and any of them can be
+  used as the box price.
 - **Where the money is**: value by booster slot.
 - **The chase**: the cards that carry the box, ranked by what each adds to an average box
   or by price.
@@ -31,7 +37,7 @@ The front page is a board of every tracked set, sortable by price ÷ value.
 | Pack layouts, print sheets, weights | [MTGJSON](https://mtgjson.com) booster data (`play` boosters) |
 | Newest sets before MTGJSON has them | Hand-transcribed collation in [`src/sets/rules/`](src/sets/rules) (FRA today) |
 | Card prices (TCGplayer market) and images | [Scryfall API](https://scryfall.com/docs/api) |
-| Sealed box price (TCGplayer market) | [TCGCSV](https://tcgcsv.com) |
+| Sealed product prices (TCGplayer market and low) | [TCGCSV](https://tcgcsv.com) |
 
 `npm run data` builds one JSON snapshot per set into `public/data/`, plus an `index.json`
 for the board. The GitHub Actions workflow runs it every morning before deploying. Without

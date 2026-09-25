@@ -8,7 +8,7 @@ import { useSnapshotIndex } from "@/hooks/useSnapshotIndex";
 import { date, isReleased, money, monthYear, percent, ratio } from "@/lib/format";
 import type { SetSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { VERDICT_TITLE, verdictFor } from "@/lib/verdict";
+import { settingsPhrase, VERDICT_TITLE, verdictFor } from "@/lib/verdict";
 import { CATALOG } from "@/sets/catalog";
 
 function headline(s: SetSummary): string {
@@ -31,7 +31,8 @@ function LeadStory({ s }: { s: SetSummary }) {
         <h1 className="display mt-4 text-[clamp(46px,7vw,92px)] leading-[0.92]">{headline(s)}</h1>
         <p className="mt-6 max-w-2xl font-serif text-[19px] leading-[1.55] text-ink-soft sm:text-[21px]">
           A {s.packsPerBox}-pack box costs about {money(price)}. On this morning&rsquo;s prices the cards inside average{" "}
-          {money(s.evBox)}, so every dollar spent buys {money(price ? s.evBox / price : null)} of cards.
+          {money(s.evBox)} {settingsPhrase(s.params ?? { floor: 0, fees: 0 })}, so every dollar spent buys{" "}
+          {money(price ? s.evBox / price : null)} of cards.
           {!released &&
             " The set isn’t out yet, and preorder singles prices rest on a handful of early sales. They nearly always fall after launch, so treat this as a ceiling."}
         </p>
@@ -178,7 +179,7 @@ function HowToRead() {
       {[
         [
           "Expected value",
-          "Add up every card you could open, each weighted by how often it turns up, at today’s TCGplayer market price. It’s what an average box is worth — not what yours will be.",
+          "Add up every card you could open, each weighted by how often it turns up, at today’s TCGplayer market price less 8% selling fees. It’s what an average box is worth — not what yours will be.",
         ],
         [
           "Price ÷ value",
@@ -251,7 +252,8 @@ export function HomePage() {
           </div>
           <Board sets={index?.sets ?? []} />
           <p className="mt-3 text-[12px] text-body">
-            Click a column heading to sort. * Estimated street price: TCGplayer had no market price for the box.
+            Expected value is after 8% selling fees per card; open a set to change that or to ignore bulk. Click a column heading to
+            sort. * Estimated street price: TCGplayer had no market price for the box.
           </p>
         </section>
 

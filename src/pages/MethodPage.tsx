@@ -109,6 +109,11 @@ value of a box  = packs per box × value of a pack`}
               estimate marked as such — type in what you&rsquo;d actually pay.
             </P>
             <P>
+              The same daily pull lists every sealed product TCGplayer carries for the set — packs, displays, bundles, cases,
+              Collector Boosters — with market and lowest-listing prices. Anything made of Play Boosters is priced per booster
+              against the value of an average pack, and any of them can stand in as the box price.
+            </P>
+            <P>
               A new card with no sales yet has no market price. It counts as zero and the set page tells you what share of the
               pack that affects. Before release, prices are preorders: thin, jumpy, and usually higher than where they settle.
             </P>
@@ -129,12 +134,12 @@ value of a box  = packs per box × value of a pack`}
             </P>
             <ul className="mt-5 list-disc space-y-3 pl-6 font-serif text-[19px] leading-[1.6] text-ink-soft marker:text-muted">
               <li>
-                <strong className="font-semibold text-ink">Count cards worth at least</strong> treats anything cheaper as worth
+                <strong className="font-semibold text-ink">Ignore cards under</strong> treats anything cheaper as worth
                 nothing. The cards are still opened — they just stop counting.
               </li>
               <li>
-                <strong className="font-semibold text-ink">Selling costs</strong> takes a percentage off every card that does count.
-                TCGplayer sellers usually lose 12–15% to fees before postage.
+                <strong className="font-semibold text-ink">Selling fees per card</strong> takes a percentage off every card that does
+                count. It starts at 8%; set it to 0% for raw market value, or higher to cover postage.
               </li>
             </ul>
 

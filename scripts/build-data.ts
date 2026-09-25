@@ -12,11 +12,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { buildFromMtgjson, buildFromRules, summarise } from "../src/lib/data/build";
-import { computeEv, DEFAULT_PARAMS } from "../src/lib/engine/ev";
+import { computeEv, DEFAULT_PARAMS, MARKET_PARAMS } from "../src/lib/engine/ev";
 import type { MtgjsonSetFile } from "../src/lib/data/mtgjson";
 import { pickBooster } from "../src/lib/data/mtgjson";
 import { createScryfallClient } from "../src/lib/data/scryfall";
-import { fetchBoxPrice } from "../src/lib/data/tcgcsv";
+import { fetchSealed } from "../src/lib/data/tcgcsv";
 import type { SetSummary, Snapshot, SnapshotIndex } from "../src/lib/types";
 import { CATALOG, type CatalogEntry } from "../src/sets/catalog";
 
@@ -75,33 +75,32 @@ async function buildSet(entry: CatalogEntry): Promise<Snapshot> {
   if (!snapshot) throw new Error("no MTGJSON booster data and no rules config");
 
   try {
-    const box = await fetchBoxPrice(entry.code, snapshot.name, tcgFetch);
-    if (box) {
-      snapshot.boxPrice = box;
-      snapshot.sources.push({ label: "TCGCSV — TCGplayer sealed product prices", url: "https://tcgcsv.com" });
-    } else {
-      snapshot.notes.push("No TCGplayer market price found for the Play Booster display; using an estimate.");
-    }
+    const { box, products } = await fetchSealed(entry.code, snapshot.name, entry.packsPerBox, tcgFetch);
+    snapshot.sealed = products;
+    if (products.length) snapshot.sources.push({ label: "TCGCSV — TCGplayer sealed product prices", url: "https://tcgcsv.com" });
+    if (box) snapshot.boxPrice = box;
+    else snapshot.notes.push("No TCGplayer market price found for the Play Booster display; using an estimate.");
   } catch (err) {
-    snapshot.notes.push("TCGplayer box price unavailable today; using an estimate.");
-    console.warn(`  box price failed: ${(err as Error).message}`);
+    snapshot.notes.push("TCGplayer sealed prices unavailable today; the box price is an estimate.");
+    console.warn(`  sealed prices failed: ${(err as Error).message}`);
   }
   return snapshot;
 }
 
 /** A plain-text breakdown for eyeballing a snapshot in CI logs. */
 function report(snapshot: Snapshot) {
-  const ev = computeEv(snapshot, DEFAULT_PARAMS);
-  // What a seller might actually net: ignore cards under $1, lose 13% to fees.
-  const net = computeEv(snapshot, { floor: 1, fees: 0.13 });
+  const ev = computeEv(snapshot, MARKET_PARAMS);
+  const site = computeEv(snapshot, DEFAULT_PARAMS);
+  const bulk = computeEv(snapshot, { floor: 0.25, fees: DEFAULT_PARAMS.fees });
   const pad = (s: string, n: number) => s.slice(0, n).padEnd(n);
   const usd = (n: number | null) => (n == null ? "—" : `$${n.toFixed(2)}`);
   const box = snapshot.boxPrice.usd;
   console.log(
     `    packs/box: ${snapshot.product.packsPerBox}, layouts: ${snapshot.model.variants.length}, priced: ${(ev.pricedShare * 100).toFixed(1)}%`,
   );
+  const x = (v: number) => (box ? `${(box / v).toFixed(2)}x` : "?");
   console.log(
-    `    market EV ${usd(ev.evBox)} (${box ? (box / ev.evBox).toFixed(2) : "?"}x) · cards >= $1 after 13% fees ${usd(net.evBox)} (${box ? (box / net.evBox).toFixed(2) : "?"}x)`,
+    `    market ${usd(ev.evBox)} (${x(ev.evBox)}) · after 8% fees ${usd(site.evBox)} (${x(site.evBox)}) · also ignoring < 25¢ ${usd(bulk.evBox)} (${x(bulk.evBox)})`,
   );
   for (const s of ev.sheets) {
     console.log(
@@ -112,6 +111,9 @@ function report(snapshot: Snapshot) {
     console.log(
       `    top: ${pad(`${c.card.name} [${c.card.set} ${c.card.cn}]${c.foil ? " foil" : ""}`, 46)} ${usd(c.price).padStart(9)}  1 in ${Math.round(1 / c.perPack)} packs  adds ${usd(c.evBox)}`,
     );
+  }
+  for (const s of snapshot.sealed ?? []) {
+    console.log(`    sealed: ${pad(s.kind, 26)} ${usd(s.market).padStart(9)}  low ${usd(s.low).padStart(9)}  ${s.name}`);
   }
   for (const n of snapshot.notes) console.log(`    note: ${n}`);
 }

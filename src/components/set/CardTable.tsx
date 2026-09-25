@@ -9,7 +9,7 @@ import type { Rarity } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { finishLabel } from "./ChaseGrid";
 
-type SortKey = "name" | "price" | "odds" | "box" | "impact";
+type SortKey = "name" | "price" | "keep" | "odds" | "box" | "impact";
 type RarityFilter = "all" | Rarity;
 type FinishFilter = "all" | "nonfoil" | "foil";
 
@@ -80,6 +80,8 @@ export function CardTable({ cards }: { cards: CardStat[] }) {
           return c.card.name;
         case "price":
           return c.price ?? -1;
+        case "keep":
+          return c.value;
         case "odds":
           return c.perPack;
         case "box":
@@ -145,13 +147,14 @@ export function CardTable({ cards }: { cards: CardStat[] }) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-[14px] md:min-w-[760px]">
+        <table className="w-full border-collapse text-left text-[14px] md:min-w-[840px]">
           <caption className="sr-only">Every card you can open, with price, odds and contribution to box value</caption>
           <thead>
             <tr className="border-b border-ink text-[12px] text-body">
               <SortHeader label="Card" k="name" sort={sort} setSort={setSort} align="left" />
               <th scope="col" className="hidden py-2 pr-4 font-semibold md:table-cell">Version</th>
               <SortHeader label="Price" k="price" sort={sort} setSort={setSort} />
+              <SortHeader label="You keep" k="keep" sort={sort} setSort={setSort} className="hidden sm:table-cell" />
               <SortHeader label="Odds" k="odds" sort={sort} setSort={setSort} className="hidden md:table-cell" />
               <SortHeader label="In a box" k="box" sort={sort} setSort={setSort} className="hidden md:table-cell" />
               <SortHeader label="Adds to box" k="impact" sort={sort} setSort={setSort} />
@@ -185,6 +188,17 @@ export function CardTable({ cards }: { cards: CardStat[] }) {
                 </td>
                 <td className="hidden py-2 pr-4 text-body md:table-cell">{finishLabel(c)}</td>
                 <td className="num py-2 pl-4 text-right font-semibold">{money(c.price)}</td>
+                <td className="num hidden py-2 pl-4 text-right sm:table-cell">
+                  {c.price == null ? (
+                    <span className="text-muted">—</span>
+                  ) : c.value === 0 ? (
+                    <span className="font-sans text-[12.5px] text-muted" title="Under your floor, so it counts as zero">
+                      bulk
+                    </span>
+                  ) : (
+                    money(c.value)
+                  )}
+                </td>
                 <td className="hidden py-2 pl-4 text-right whitespace-nowrap text-body md:table-cell">{oneIn(c.perPack)}</td>
                 <td className="num hidden py-2 pl-4 text-right text-body md:table-cell">{percent(c.chanceInBox, c.chanceInBox < 0.1 ? 1 : 0)}</td>
                 <td className="num py-2 pl-4 text-right">{money(c.evBox)}</td>

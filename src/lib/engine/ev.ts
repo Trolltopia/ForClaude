@@ -7,7 +7,13 @@ export interface EvParams {
   fees: number;
 }
 
-export const DEFAULT_PARAMS: EvParams = { floor: 0, fees: 0 };
+/** Selling fees taken off every card by default: roughly what a marketplace and payment processing cost. */
+export const DEFAULT_FEES = 0.08;
+
+export const DEFAULT_PARAMS: EvParams = { floor: 0, fees: DEFAULT_FEES };
+
+/** Every card at full market price — the number most EV sites lead with. */
+export const MARKET_PARAMS: EvParams = { floor: 0, fees: 0 };
 
 /**
  * USD market price for a card in the given finish. Foil-only printings keep their

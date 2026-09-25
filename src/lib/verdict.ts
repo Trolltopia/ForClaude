@@ -1,3 +1,4 @@
+import type { EvParams } from "./engine/ev";
 import { date, isReleased, money, percent, ratio } from "./format";
 
 export type Verdict = "crack" | "toss-up" | "keep" | "early";
@@ -35,4 +36,13 @@ export function verdictLine(price: number, ev: number, releasedAt?: string): str
     return `The box costs ${percent(r - 1)} more than the cards inside are worth. You pay ${money(r)} for every dollar of cards.`;
   }
   return `Box and contents are within 5% of each other (${ratio(r)}). Open it for the fun, not the money.`;
+}
+
+/** "after 8% selling fees", "ignoring cards under 25¢, after 8% selling fees", or "at full market price". */
+export function settingsPhrase(params: EvParams): string {
+  const fees = Math.round(params.fees * 100);
+  const floor = params.floor > 0 ? `ignoring cards under ${params.floor < 1 ? `${Math.round(params.floor * 100)}¢` : money(params.floor)}` : "";
+  const fee = fees > 0 ? `after ${fees}% selling fees` : "";
+  if (!floor && !fee) return "at full market price";
+  return [floor, fee].filter(Boolean).join(", ");
 }

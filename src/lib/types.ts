@@ -83,6 +83,38 @@ export interface Source {
   url: string;
 }
 
+export type SealedKind =
+  | "Play Booster Display"
+  | "Play Booster Pack"
+  | "Sleeved Play Booster"
+  | "Play Booster Case"
+  | "Bundle"
+  | "Gift Bundle"
+  | "Collector Booster Display"
+  | "Collector Booster Pack"
+  | "Collector Booster Case"
+  | "Prerelease Pack"
+  | "Commander Deck"
+  | "Starter Kit"
+  | "Scene Box"
+  | "Jumpstart"
+  | "Other";
+
+/** A sealed product TCGplayer lists for the set, priced today. */
+export interface SealedProduct {
+  productId: number;
+  name: string;
+  kind: SealedKind;
+  /** TCGplayer market price (recent sales), falling back to the mid price. */
+  market: number | null;
+  /** Lowest current listing. */
+  low: number | null;
+  /** Play Boosters inside, when the product holds a fixed number of them. */
+  packs: number | null;
+  url: string;
+  image: string | null;
+}
+
 export interface Snapshot {
   version: 1;
   code: string;
@@ -95,6 +127,8 @@ export interface Snapshot {
     cardsPerPack: number | null;
   };
   boxPrice: BoxPrice;
+  /** Every sealed product for the set with TCGplayer prices; absent in browser-built snapshots. */
+  sealed?: SealedProduct[];
   model: BoosterModel;
   modelSource: ModelSource;
   cards: CardRecord[];
@@ -124,6 +158,8 @@ export interface SetSummary {
     treatmentLabel: string;
   } | null;
   modelSource: ModelSource["kind"];
+  /** Floor and fees behind evBox and ratio (older snapshots: full market price). */
+  params?: { floor: number; fees: number };
 }
 
 export interface SnapshotIndex {

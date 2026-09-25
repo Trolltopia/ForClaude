@@ -1,10 +1,21 @@
 import { SetIcon } from "@/components/SetIcon";
+import type { EvParams } from "@/lib/engine/ev";
 import { date, isReleased, money } from "@/lib/format";
 import type { Snapshot } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { VERDICT_TITLE, verdictFor, verdictLine } from "@/lib/verdict";
+import { settingsPhrase, VERDICT_TITLE, verdictFor, verdictLine } from "@/lib/verdict";
 
-export function SetHeader({ snapshot, boxPrice, evBox }: { snapshot: Snapshot; boxPrice: number | null; evBox: number }) {
+export function SetHeader({
+  snapshot,
+  boxPrice,
+  evBox,
+  params,
+}: {
+  snapshot: Snapshot;
+  boxPrice: number | null;
+  evBox: number;
+  params: EvParams;
+}) {
   const released = isReleased(snapshot.releasedAt);
   const r = boxPrice && evBox > 0 ? boxPrice / evBox : null;
   const verdict = verdictFor(r, snapshot.releasedAt);
@@ -25,10 +36,14 @@ export function SetHeader({ snapshot, boxPrice, evBox }: { snapshot: Snapshot; b
           {boxPrice ? (
             <>
               A box of {snapshot.product.packsPerBox} Play Boosters costs about <strong className="font-semibold">{money(boxPrice)}</strong>.
-              On today&rsquo;s prices, the cards inside are worth <strong className="font-semibold">{money(evBox)}</strong> on average.
+              On today&rsquo;s prices, the cards inside are worth <strong className="font-semibold">{money(evBox)}</strong> on average,{" "}
+              {settingsPhrase(params)}.
             </>
           ) : (
-            <>On today&rsquo;s prices, the cards in a box are worth {money(evBox)} on average. Enter a box price to compare.</>
+            <>
+              On today&rsquo;s prices, the cards in a box are worth {money(evBox)} on average, {settingsPhrase(params)}. Enter a box
+              price to compare.
+            </>
           )}
         </p>
       </div>
