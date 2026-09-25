@@ -53,9 +53,13 @@ Other scripts: `npm test` (Vitest), `npm run typecheck`, `npm run build`, `npm r
 ## Deploying
 
 `.github/workflows/deploy.yml` builds the snapshots, runs the tests, builds the site and
-publishes it to GitHub Pages on every push to `main`, daily at 06:17 UTC, and on demand.
-Turn it on once under **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-The site handles the `/<repo>/` base path and deep links (`404.html` is a copy of the app).
+publishes it to GitHub Pages on every push to `main`, daily at 06:17 UTC (on the default
+branch), and on demand from the Actions tab. Turn Pages on once under **Settings → Pages →
+Build and deployment → Source: GitHub Actions**; until then the workflow skips itself. The
+site handles the `/<repo>/` base path and deep links (`404.html` is a copy of the app).
+
+`.github/workflows/data-check.yml` builds a few sets against the live APIs and prints each
+slot and the top cards, without deploying — handy after touching the pipeline or a rules file.
 
 Any static host works: `npm run data && npm run build`, then serve `dist/`. Set `BASE_PATH`
 if the site doesn't live at the domain root.

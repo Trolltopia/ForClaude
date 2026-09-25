@@ -18,7 +18,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Until Pages is switched on (Settings → Pages → Source: GitHub Actions) there's
+  # nowhere to deploy, so skip quietly instead of failing every morning.
+  pages:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/pages" --silent 2>/dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages isn't enabled yet. Turn it on under Settings → Pages (Source: GitHub Actions), then run this workflow again."
+          fi
+
   build:
+    needs: pages
+    if: needs.pages.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
