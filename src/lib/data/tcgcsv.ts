@@ -41,7 +41,7 @@ export function findGroup(groups: TcgGroup[], code: string, name: string): TcgGr
   return byName.find((g) => !g.isSupplemental) ?? byName[0] ?? null;
 }
 
-/** The Play Booster display (a 30-pack box), not a case, bundle, or single pack. */
+/** The Play Booster display (the 30- or 36-pack box), not a case, bundle, or single pack. */
 export function findPlayBoxProduct(products: TcgProduct[]): TcgProduct | null {
   const candidates = products.filter(
     (p) =>

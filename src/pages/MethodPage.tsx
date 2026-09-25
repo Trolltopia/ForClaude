@@ -70,7 +70,8 @@ export function MethodPage() {
             <P>
               A Play Booster is a handful of slots. Each slot draws a card from a pool — a <em>sheet</em> — with known odds. Multiply
               every card&rsquo;s price by the chance it lands in a slot, add it all up, and you have the value of an average pack.
-              Thirty of those make a box.
+              A box is thirty of those — thirty-six for sets before Aetherdrift, when Wizards shrank the
+              display.
             </P>
             <Formula>
               {`value of a pack = Σ slots  Σ cards in slot   P(card) × price(card)
@@ -104,7 +105,7 @@ value of a box  = packs per box × value of a pack`}
                 Scryfall
               </a>
               , which refreshes them daily. Foils are priced as foils. The box price is TCGplayer&rsquo;s market price for the
-              30-pack Play Booster display, via TCGCSV&rsquo;s daily mirror. When there isn&rsquo;t one, you&rsquo;ll see an
+              Play Booster display, via TCGCSV&rsquo;s daily mirror. When there isn&rsquo;t one, you&rsquo;ll see an
               estimate marked as such — type in what you&rsquo;d actually pay.
             </P>
             <P>

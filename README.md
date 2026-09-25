@@ -2,7 +2,7 @@
 
 What a Magic: The Gathering booster box is worth once you open it, priced every morning.
 
-For every Play Booster set, the site works out the expected value of a 30-pack box from the
+For every Play Booster set, the site works out the expected value of a Play Booster box from the
 real pack layout and TCGplayer market prices, compares it with what the box costs, and gives
 a verdict: crack it, keep it sealed, or call it a toss-up. It's a sharper, faster take on the
 kind of data at [theexpectedvalue.com](https://theexpectedvalue.com/play-ev/fra), starting
@@ -75,8 +75,9 @@ if the site doesn't live at the domain root.
 ## How the maths works
 
 Expected value per pack is Σ over slots of Σ over cards of P(card) × price(card); a box is 30
-packs. The model is a list of pack layouts with weights, each drawing a number of cards
-from weighted sheets, so MTGJSON data and hand-written rules end up in the same shape
+packs (36 for Bloomburrow, Duskmourn and Foundations; Aetherdrift cut displays to 30). The
+model is a list of pack layouts with weights, each drawing a number of cards from weighted
+sheets, so MTGJSON data and hand-written rules end up in the same shape
 ([`src/lib/engine`](src/lib/engine)). The [Method page](src/pages/MethodPage.tsx) explains
 the assumptions in plain English.
 

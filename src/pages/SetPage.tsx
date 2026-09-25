@@ -58,6 +58,7 @@ export function SetPage({ code }: { code: string }) {
             <SetHeader snapshot={snapshot} boxPrice={boxPrice} evBox={ev.evBox} />
 
             <Controls
+              packsPerBox={snapshot.product.packsPerBox}
               boxPrice={boxPrice}
               marketPrice={marketPrice}
               overridden={query.box != null}

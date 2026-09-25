@@ -52,7 +52,9 @@ export function Controls({
   fees,
   onFees,
   onReset,
+  packsPerBox,
 }: {
+  packsPerBox: number;
   boxPrice: number | null;
   marketPrice: BoxPrice;
   overridden: boolean;
@@ -71,7 +73,7 @@ export function Controls({
           <div className="mb-1.5 flex items-center gap-2 font-sans text-[13px] font-bold">
             Box price
             <InfoTip>
-              What you&rsquo;d pay for a sealed 30-pack Play Booster display. Defaults to TCGplayer&rsquo;s market price; type your own to
+              What you&rsquo;d pay for a sealed {packsPerBox}-pack Play Booster display. Defaults to TCGplayer&rsquo;s market price; type your own to
               compare.
             </InfoTip>
           </div>
