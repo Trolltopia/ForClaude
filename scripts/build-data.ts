@@ -24,8 +24,8 @@ const OUT = join(import.meta.dirname, "..", "public", "data");
 const USER_AGENT = "CrackOrKeep/0.1 (+https://github.com/Trolltopia/ForClaude)";
 const headers = { "User-Agent": USER_AGENT, Accept: "application/json" };
 
-// Scryfall asks for 50–100 ms between requests; stay a little above that.
-const scryfall = createScryfallClient({ delayMs: 120, headers });
+// Scryfall allows about two requests a second to /cards/collection; stay under it.
+const scryfall = createScryfallClient({ delayMs: 550, headers });
 const mtgjsonCache = new Map<string, Promise<MtgjsonSetFile | null>>();
 
 // Set files run to tens of megabytes; the gzipped copies are a tenth of that.

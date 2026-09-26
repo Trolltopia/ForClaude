@@ -40,7 +40,8 @@ jobs:
     needs: pages
     if: needs.pages.outputs.enabled == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # About 160 sets at Scryfall's pace of two requests a second.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 

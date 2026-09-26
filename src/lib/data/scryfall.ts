@@ -158,8 +158,10 @@ export function createScryfallClient(options: ScryfallClientOptions = {}) {
     for (let attempt = 0; ; attempt++) {
       last = Date.now();
       const res = await doFetch(url, { ...init, headers: { ...headers, ...(init?.headers as Record<string, string>) } });
-      if (res.status === 429 && attempt < 3) {
-        await sleep(1000 * (attempt + 1));
+      // Too many requests: wait as long as Scryfall asks, or back off harder each time.
+      if (res.status === 429 && attempt < 4) {
+        const retryAfter = Number(res.headers.get("retry-after"));
+        await sleep(retryAfter > 0 ? retryAfter * 1000 : [2_000, 5_000, 15_000, 30_000][attempt]);
         continue;
       }
       if (res.status === 404) throw new ScryfallNotFound(url);

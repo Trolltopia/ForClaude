@@ -85,11 +85,18 @@ value of a box  = packs per box × value of a pack`}
 
             <H id="boosters">Play, Draft, Set and Collector</H>
             <P>
-              Each set page prices every booster the set was sold in, with a switch at the top to move between them. From Murders
-              at Karlov Manor (2024) on, that means Play Boosters, thirty-six to a display until Aetherdrift cut it to thirty. Before
-              that, sets came in Draft Boosters, thirty-six to a display, and from Zendikar Rising (2020) to The Lost Caverns of
-              Ixalan (2023) also in Set Boosters, thirty to a display. Collector Boosters run through both eras: twelve packs of
-              foils, alternate art and the rarest printings.
+              The site covers every paper set since Limited Edition Alpha in 1993 that MTGJSON models and TCGplayer sells: expansions,
+              core sets, Masters sets and the special draft sets. Each set page prices every booster the set was sold in, with a
+              switch at the top to move between them. From Murders at Karlov Manor (2024) on, that means Play Boosters, thirty-six
+              to a display until Aetherdrift cut it to thirty. Before that came Draft Boosters (plain &ldquo;boosters&rdquo; until
+              2020), and from Zendikar Rising (2020) to The Lost Caverns of Ixalan (2023) also Set Boosters. Collector Boosters
+              arrived with Throne of Eldraine (2019): twelve packs of foils, alternate art and the rarest printings.
+            </P>
+            <P>
+              How many packs a display holds comes from MTGJSON&rsquo;s record of what&rsquo;s inside it, not from a rule of thumb:
+              thirty-six for most sets, twenty-four for Masters sets, sixty eight-card packs for Arabian Nights and The Dark, four
+              for a Commander Masters Collector display. The same records say how many boosters a bundle or a case holds and which
+              TCGplayer listing is the display, so its price is the exact product.
             </P>
             <P>
               The board compares one kind of box at a time: each set&rsquo;s main booster (Play, or Draft before 2024), Set

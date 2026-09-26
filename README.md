@@ -2,9 +2,9 @@
 
 What a Magic: The Gathering booster box is worth once you open it, priced every morning.
 
-For every premier set since 2020, the site works out the expected value of each kind of booster
-box the set was sold in (Play, Draft, Set and Collector) from the real pack layouts and
-TCGplayer market prices, compares it with what the box costs, and gives a verdict: crack it,
+For every paper set since Limited Edition Alpha (1993) that MTGJSON models and TCGplayer sells,
+162 of them, the site works out the expected value of each kind of booster box the set was sold
+in (Play, Draft, Set and Collector) from the real pack layouts and TCGplayer market prices, compares it with what the box costs, and gives a verdict: crack it,
 keep it sealed, or call it a toss-up. It's a sharper, faster take on the kind of data at
 [theexpectedvalue.com](https://theexpectedvalue.com/play-ev/fra), starting with **Reality
 Fracture (FRA)**.
@@ -29,11 +29,14 @@ Fracture (FRA)**.
   or by price.
 - **Ten thousand boxes**: a Monte Carlo simulation (in a Web Worker) drawn as a
   histogram, with percentiles and an "open a box" button that opens one pack by pack.
+- **One box or a hundred**: runs of 1, 3, 10, 30 and 100 boxes drawn from the simulation,
+  with the chance each run comes out ahead, where nine runs in ten land, a one-in-twenty bad
+  run, and the most you can pay per box and still come out ahead nine times in ten.
 - **Every card**: searchable, sortable, with odds per pack and per box.
 - **Collation**: the odds of every slot, sources and caveats.
 
-The front page is a board of every tracked set, sortable by price ÷ value, comparing each
-set's main booster box, its Set Boosters or its Collector Boosters.
+The front page is a board of every tracked set, sortable by price ÷ value and filterable by
+years, comparing each set's main booster box, its Set Boosters or its Collector Boosters.
 
 ## Where the data comes from
 
@@ -43,6 +46,7 @@ set's main booster box, its Set Boosters or its Collector Boosters.
 | Newest sets before MTGJSON has them | Hand-transcribed collation in [`src/sets/rules/`](src/sets/rules) (FRA's Play Booster today) |
 | Card prices (TCGplayer market) and images | [Scryfall API](https://scryfall.com/docs/api) |
 | Sealed product prices (TCGplayer market and low) | [TCGCSV](https://tcgcsv.com) |
+| What's inside each box, bundle and case; TCGplayer product ids | MTGJSON sealed-product records |
 
 `npm run data` builds one JSON snapshot per set into `public/data/` (every booster of the
 set over one shared card pool), plus an `index.json` for the board. The GitHub Actions workflow runs it every morning before deploying. Without
@@ -77,9 +81,10 @@ if the site doesn't live at the domain root.
 
 ## Adding a set
 
-1. Add an entry to [`src/sets/catalog.ts`](src/sets/catalog.ts): code, name, release date,
-   and the boosters it was sold in with their display sizes (optionally a fallback box
-   price for each).
+1. Run the **Discover sets** workflow (or `npm run discover`): it lists every set MTGJSON
+   models, its booster sheets, and what its displays hold. Add an entry to
+   [`src/sets/catalog.ts`](src/sets/catalog.ts): code, name, release date, set type, and
+   the boosters it was sold in with their display sizes (optionally a fallback box price).
 2. If MTGJSON already has booster data for it, that's all. If not, write a rules file
    like [`src/sets/rules/fra.ts`](src/sets/rules/fra.ts) from the set's "Collecting …"
    article (card pools by rarity and collector number, and each slot's odds) and attach
