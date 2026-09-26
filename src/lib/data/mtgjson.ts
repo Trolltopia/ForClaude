@@ -172,6 +172,9 @@ export function sheetLabel(key: string): string {
   const words = key
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
+    // "masterpiece1In144" → "masterpiece 1 In 144"
+    .replace(/([a-z])(\d)/gi, "$1 $2")
+    .replace(/(\d)([a-z])/gi, "$1 $2")
     .toLowerCase()
     .split(/\s+/)
     .map((w) => WORDS[w] ?? w);

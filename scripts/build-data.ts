@@ -17,6 +17,7 @@ import { sealedBoosters, type MtgjsonSetFile } from "../src/lib/data/mtgjson";
 import { createScryfallClient } from "../src/lib/data/scryfall";
 import { fetchSealed, type Displays } from "../src/lib/data/tcgcsv";
 import { computeEv, DEFAULT_PARAMS, MARKET_PARAMS } from "../src/lib/engine/ev";
+import { compileModel, simulateBoxValues, summarise as summariseSimulation } from "../src/lib/engine/simulate";
 import type { SetSnapshot, SetSummary, Snapshot, SnapshotIndex } from "../src/lib/types";
 import { CATALOG, type CatalogEntry } from "../src/sets/catalog";
 
@@ -117,6 +118,12 @@ function report(snapshot: Snapshot) {
     console.log(
       `    ${pad(s.label, 34)} ${s.perPack.toFixed(2).padStart(5)}/pack  ${String(s.distinctCards).padStart(4)} cards  avg ${usd(s.avgValue).padStart(8)}  box ${usd(s.evBox).padStart(9)}  ${(s.share * 100).toFixed(1).padStart(5)}%`,
     );
+  }
+  if (box) {
+    // One box against a store's order: chance of coming out ahead, and the most to pay for nine in ten.
+    const sim = summariseSimulation(simulateBoxValues(compileModel(snapshot.model, snapshot.cards, DEFAULT_PARAMS), snapshot.product.packsPerBox, 10_000, 20261002), box);
+    const runs = sim.bulk.map((b) => `${b.boxes}: ${((b.beatPrice ?? 0) * 100).toFixed(1)}% ahead, pay at most ${usd(b.p10)}`);
+    console.log(`    runs of boxes after 8% fees · ${runs.join(" · ")}`);
   }
   for (const c of ev.cards.slice(0, 6)) {
     console.log(

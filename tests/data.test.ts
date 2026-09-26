@@ -159,6 +159,7 @@ describe("MTGJSON", () => {
     expect(sheetLabel("rmExtended")).toBe("Rare/mythic extended");
     expect(sheetLabel("foilRetroCu")).toBe("Foil retro common/uncommon");
     expect(sheetLabel("commonUncommonShowcase")).toBe("Common/uncommon showcase");
+    expect(sheetLabel("foilOrMasterpiece1In144")).toBe("Foil or masterpiece 1 in 144");
   });
 
   it("maps uuids to Scryfall ids and keeps weights", () => {

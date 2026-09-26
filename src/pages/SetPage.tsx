@@ -145,7 +145,8 @@ export function SetPage({ code, booster: requested }: { code: string; booster?: 
             />
             {ev.pricedShare < 0.95 && (
               <p className="mt-4 text-[13px] text-body">
-                {percent(1 - ev.pricedShare)} of the cards you can open have no market price yet and count as zero.
+                {percent(1 - ev.pricedShare)} of the cards you can open have no TCGplayer market price, so they count as zero and
+                the real value is higher.
               </p>
             )}
 
