@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SIM_BOXES } from "@/hooks/useSimulation";
 import type { EvParams } from "@/lib/engine/ev";
 import { compileModel, openBox, type OpenedBox, type SimulationSummary } from "@/lib/engine/simulate";
-import { count, money, percent, signedMoney } from "@/lib/format";
+import { chance, count, money, signedMoney } from "@/lib/format";
 import type { Snapshot } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +56,7 @@ function Percentiles({ sim, boxPrice }: { sim: SimulationSummary; boxPrice: numb
             <th scope="row" className="py-2 pr-3 text-left font-semibold">
               Beat {money(boxPrice)}
             </th>
-            <td className="num py-2 text-right font-semibold">{percent(sim.beatPrice)}</td>
+            <td className="num py-2 text-right font-semibold">{chance(sim.beatPrice)}</td>
           </tr>
         )}
       </tbody>

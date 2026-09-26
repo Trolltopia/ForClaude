@@ -18,7 +18,7 @@ import { useQueryNumbers } from "@/hooks/useQueryState";
 import { SIM_BOXES, useSimulation } from "@/hooks/useSimulation";
 import { boosterName, boosterView, byBoosterOrder } from "@/lib/boosters";
 import { computeEv, DEFAULT_FEES, type EvParams } from "@/lib/engine/ev";
-import { count, isReleased, money, percent } from "@/lib/format";
+import { chance, count, isReleased, money, percent } from "@/lib/format";
 import type { BoosterType } from "@/lib/types";
 import { catalogEntry } from "@/sets/catalog";
 
@@ -220,7 +220,7 @@ export function SetPage({ code, booster: requested }: { code: string; booster?: 
                 sim && boxPrice ? (
                   <>
                     The average hides how lopsided a box is. We opened {count(SIM_BOXES)} of them, pack by pack.{" "}
-                    <strong className="font-semibold text-ink">{percent(sim.beatPrice)}</strong> were worth the{" "}
+                    <strong className="font-semibold text-ink">{chance(sim.beatPrice)}</strong> were worth the{" "}
                     {money(boxPrice)} they cost; the typical box came to {money(sim.percentiles.p50)}.
                   </>
                 ) : (

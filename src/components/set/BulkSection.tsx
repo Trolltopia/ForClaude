@@ -1,18 +1,13 @@
 import { InfoTip } from "@/components/ui/tooltip";
 import type { BulkOutcome } from "@/lib/engine/simulate";
-import { money, percent } from "@/lib/format";
+import { chance, money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 function boxesLabel(n: number) {
   return n === 1 ? "1 box" : `${n} boxes`;
 }
 
-/** A simulated share: never quite "never" or "always". */
-function chance(p: number) {
-  if (p <= 0) return "under 0.1%";
-  if (p >= 1) return "over 99.9%";
-  return percent(p, p < 0.01 || p > 0.99 ? 1 : 0);
-}
+
 
 function Legend() {
   return (

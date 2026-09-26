@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { InfoTip } from "@/components/ui/tooltip";
 import type { SimulationSummary } from "@/lib/engine/simulate";
-import { money, percent, ratio } from "@/lib/format";
+import { chance, money, ratio } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 function Tile({
@@ -82,9 +82,9 @@ export function KpiRow({
       <Tile
         label="Boxes that beat the price"
         info="Share of ten thousand simulated boxes whose cards were worth at least the box price, with your floor and selling costs applied."
-        value={sim?.beatPrice != null ? percent(sim.beatPrice) : "—"}
+        value={sim?.beatPrice != null ? chance(sim.beatPrice) : "—"}
         dimmed={simRunning && sim != null}
-        foot={sim?.doublePrice != null ? `${percent(sim.doublePrice, sim.doublePrice < 0.01 ? 1 : 0)} doubled their money` : "Simulating…"}
+        foot={sim?.doublePrice != null ? `${chance(sim.doublePrice)} doubled their money` : "Simulating…"}
       />
       <Tile
         label="The typical box"

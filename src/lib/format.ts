@@ -22,6 +22,14 @@ export function percent(n: number | null | undefined, digits = 0): string {
   return `${v.toFixed(digits)}%`;
 }
 
+/** A share of simulated boxes: never quite "never" or "always", since it's an estimate. */
+export function chance(p: number | null | undefined): string {
+  if (p == null || !Number.isFinite(p)) return "—";
+  if (p <= 0) return "under 0.1%";
+  if (p >= 1) return "over 99.9%";
+  return percent(p, p < 0.01 || p > 0.99 ? 1 : 0);
+}
+
 export function ratio(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `${n.toFixed(2)}×`;
