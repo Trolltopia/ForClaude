@@ -26,6 +26,8 @@ const scry = [
   sf("chase", { usd: "40", usd_foil: "55" }),
   // Scryfall knows the regular price but not the foil one the product holds.
   sf("lair", { usd: "15" }),
+  // A surge foil: TCGplayer sells it as a product of its own.
+  sf("surge", { usd: "0.56" }),
 ];
 
 function fakeClient() {
@@ -54,7 +56,11 @@ const setFile: MtgjsonSetFile = {
       name: c.name,
       number: "1",
       setCode: "TSC",
-      identifiers: { scryfallId: c.id, ...(c.id === "lair" ? { tcgplayerProductId: "7001" } : {}) },
+      identifiers: {
+        scryfallId: c.id,
+        ...(c.id === "lair" ? { tcgplayerProductId: "7001" } : {}),
+        ...(c.id === "surge" ? { tcgplayerProductId: "8001", tcgplayerAlternativeFoilProductId: "8002" } : {}),
+      },
     })),
     sealedProduct: [
       { uuid: "sp-1", name: "Test Commander Deck Elves", category: "deck", identifiers: { tcgplayerProductId: "5001" } },
@@ -82,6 +88,7 @@ const setFile: MtgjsonSetFile = {
         mainBoard: [
           { count: 1, uuid: "u-ring" },
           { count: 1, uuid: "u-lair", isFoil: true },
+          { count: 1, uuid: "u-surge", isFoil: true },
         ],
         sealedProductUuids: ["sp-2"],
       },
@@ -106,6 +113,8 @@ const tcgGroup = async (groupId: number) => {
       { productId: 5002, marketPrice: null, midPrice: null, lowPrice: null, subTypeName: "Normal" },
       { productId: 7001, marketPrice: 14, subTypeName: "Normal" },
       { productId: 7001, marketPrice: 22, subTypeName: "Foil" },
+      { productId: 8001, marketPrice: 0.56, subTypeName: "Normal" },
+      { productId: 8002, marketPrice: 14.18, subTypeName: "Foil" },
     ],
   };
 };
@@ -148,7 +157,8 @@ describe("fixed products", () => {
     expect(rings.notes).toContain("TCGplayer has no market price for the sealed product yet.");
     // No foil price on Scryfall: TCGplayer's own foil price fills in, and the page says so.
     expect(rings.cards.find((c) => c.id === "lair")).toMatchObject({ finish: "foil", price: 22 });
-    expect(rings.notes.some((n) => n.startsWith("1 card price comes straight from TCGplayer"))).toBe(true);
+    expect(rings.cards.find((c) => c.id === "surge")).toMatchObject({ finish: "foil", price: 14.18 });
+    expect(rings.notes.some((n) => n.startsWith("2 card prices come straight from TCGplayer"))).toBe(true);
     expect(elves.notes.some((n) => n.includes("straight from TCGplayer"))).toBe(false);
   });
 

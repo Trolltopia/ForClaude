@@ -25,7 +25,13 @@ export interface MtgjsonCard {
   number: string;
   setCode: string;
   side?: string;
-  identifiers?: { scryfallId?: string; tcgplayerProductId?: string; tcgplayerEtchedProductId?: string };
+  identifiers?: {
+    scryfallId?: string;
+    tcgplayerProductId?: string;
+    tcgplayerEtchedProductId?: string;
+    /** TCGplayer sells special foils (rainbow, surge, ripple…) as a product of their own. */
+    tcgplayerAlternativeFoilProductId?: string;
+  };
 }
 
 /** A sealed product as MTGJSON records it: what's inside, and its id on TCGplayer. */

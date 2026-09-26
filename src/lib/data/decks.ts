@@ -45,6 +45,8 @@ interface CardIds {
   scryfallId: string;
   tcg: number | null;
   tcgEtched: number | null;
+  /** The separate TCGplayer product for a special foil (rainbow, surge, ripple…). */
+  tcgFoil: number | null;
   /** The TCGplayer group of the set file the card came from. */
   group: number | null;
 }
@@ -89,6 +91,7 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
           scryfallId: c.identifiers.scryfallId,
           tcg: Number(c.identifiers.tcgplayerProductId) || null,
           tcgEtched: Number(c.identifiers.tcgplayerEtchedProductId) || null,
+          tcgFoil: Number(c.identifiers.tcgplayerAlternativeFoilProductId) || null,
           group: f.data.tcgplayerGroupId ?? null,
         });
       }
@@ -169,22 +172,30 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
     }
     return groupPrices.get(group)!;
   };
+  // A foil can sit on the card's own product or, for special foils, on a product of its own;
+  // an etched foil has its own product too.
+  const tcgPriceOf = async (info: CardIds, finish: CardFinish, onlyFoil: boolean): Promise<number | null> => {
+    if (!info.group) return null;
+    const prices = await pricesOf(info.group);
+    const row = (id: number | null) => (id ? prices.get(id) : undefined);
+    if (finish === "nonfoil") return row(info.tcg)?.normal ?? (onlyFoil ? (row(info.tcg)?.foil ?? row(info.tcgFoil)?.foil) : null) ?? null;
+    if (finish === "etched") return row(info.tcgEtched)?.foil ?? row(info.tcg)?.foil ?? null;
+    return row(info.tcg)?.foil ?? row(info.tcgFoil)?.foil ?? null;
+  };
   const tcgPrices = new Map<string, number | null>();
   for (const { contents } of pending) {
     for (const c of contents) {
       const info = uuidInfo.get(c.uuid);
       const card = cards.get(info?.scryfallId ?? "");
       const key = `${c.uuid}:${c.finish}`;
-      if (!info?.group || !card || priceInFinish(card, c.finish) != null || tcgPrices.has(key)) continue;
-      const row = (await pricesOf(info.group)).get((c.finish === "etched" ? info.tcgEtched : null) ?? info.tcg ?? -1);
-      const onlyFoil = !card.finishes.includes("nonfoil");
-      tcgPrices.set(key, c.finish === "nonfoil" ? (row?.normal ?? (onlyFoil ? row?.foil : null) ?? null) : (row?.foil ?? null));
+      if (!info || !card || priceInFinish(card, c.finish) != null || tcgPrices.has(key)) continue;
+      tcgPrices.set(key, await tcgPriceOf(info, c.finish, !card.finishes.includes("nonfoil")));
     }
   }
 
   const used = new Set<string>();
-  let explained = 0;
-  return pending.map(({ entry, kind, deck, setName, price, tcgplayerId, contents }) => {
+  const worst: { name: string; code: string; share: number; uuids: [string, CardFinish][] }[] = [];
+  const products = pending.map(({ entry, kind, deck, setName, price, tcgplayerId, contents }) => {
     let id = fixedId(entry.name, entry.code);
     for (let n = 2; used.has(id); n++) id = `${fixedId(entry.name, entry.code)}-${n}`;
     used.add(id);
@@ -218,15 +229,10 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
         ...(c.commander ? { commander: true } : {}),
       });
     }
-    // Say why a product is mostly unpriced, so the next run can be read without guessing.
-    const unpriced = list.filter((c) => c.price == null);
     const copies = list.reduce((s, c) => s + c.count, 0);
-    if (copies && unpriced.reduce((s, c) => s + c.count, 0) / copies > 0.5 && explained++ < 30) {
-      for (const u of unpriced.slice(0, 3)) {
-        const card = cards.get(u.id)!;
-        const p = card.prices;
-        log(`  unpriced in ${entry.name} (${entry.code}): ${u.name} ${u.set} ${u.cn} as ${u.finish}; Scryfall finishes ${card.finishes.join("/")}, usd ${p.usd} foil ${p.usdFoil} etched ${p.usdEtched}`);
-      }
+    const unpricedCopies = list.filter((c) => c.price == null).reduce((s, c) => s + c.count, 0);
+    if (copies && unpricedCopies / copies > 0.5) {
+      worst.push({ name: entry.name, code: entry.code, share: unpricedCopies / copies, uuids: contents.filter((c) => list.some((l) => l.price == null && l.id === uuidInfo.get(c.uuid)?.scryfallId)).map((c) => [c.uuid, c.finish]) });
     }
     if (missing) notes.push(`${missing} card${missing === 1 ? "" : "s"} in the list could not be matched to Scryfall and are left out.`);
     if (fromTcg) notes.push(`${fromTcg} card price${fromTcg === 1 ? " comes" : "s come"} straight from TCGplayer: Scryfall had none for the finish in this product.`);
@@ -246,4 +252,20 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
       notes,
     };
   });
+
+  // Say why the least-priced products lack prices, so a run's log can be read without guessing.
+  if (deps.log) {
+    for (const w of worst.sort((a, b) => b.share - a.share).slice(0, 12)) {
+      for (const [uuid, finish] of w.uuids.slice(0, 2)) {
+        const info = uuidInfo.get(uuid)!;
+        const card = cards.get(info.scryfallId)!;
+        const rows = info.group ? await pricesOf(info.group) : new Map();
+        const show = (id: number | null) => (id ? `${id} ${JSON.stringify(rows.get(id) ?? "no row")}` : "none");
+        log(
+          `  unpriced (${Math.round(w.share * 100)}% of ${w.name}, ${w.code}): ${card.name} ${card.set} ${card.cn} as ${finish}; Scryfall ${card.finishes.join("/")} usd ${card.prices.usd} foil ${card.prices.usdFoil} etched ${card.prices.usdEtched}; group ${info.group}; tcg ${show(info.tcg)}; foil product ${show(info.tcgFoil)}; etched product ${show(info.tcgEtched)}`,
+        );
+      }
+    }
+  }
+  return products;
 }
