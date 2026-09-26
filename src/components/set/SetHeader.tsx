@@ -35,7 +35,8 @@ export function SetHeader({
         <p className="mt-6 max-w-2xl font-serif text-[19px] leading-[1.5] text-ink-soft sm:text-[21px]">
           {boxPrice ? (
             <>
-              A box of {snapshot.product.packsPerBox} Play Boosters costs about <strong className="font-semibold">{money(boxPrice)}</strong>.
+              A box of {snapshot.product.packsPerBox} {snapshot.product.name}s costs about{" "}
+              <strong className="font-semibold">{money(boxPrice)}</strong>.
               On today&rsquo;s prices, the cards inside are worth <strong className="font-semibold">{money(evBox)}</strong> on average,{" "}
               {settingsPhrase(params)}.
             </>

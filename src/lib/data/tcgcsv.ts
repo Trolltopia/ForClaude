@@ -1,4 +1,5 @@
-import type { BoxPrice, SealedKind, SealedProduct } from "../types";
+import { BOOSTER_TYPES } from "../boosters";
+import type { BoosterType, BoxPrice, SealedKind, SealedProduct } from "../types";
 import type { FetchLike } from "./scryfall";
 
 // TCGCSV mirrors TCGplayer's catalog and daily prices as JSON. Category 1 is Magic.
@@ -64,14 +65,17 @@ export function findCompanionGroups(groups: TcgGroup[], main: TcgGroup, setName:
   });
 }
 
-/** The Play Booster display (the 30- or 36-pack box), not a case, bundle, or single pack. */
-export function findPlayBoxProduct(products: TcgProduct[]): TcgProduct | null {
-  const candidates = products.filter(
-    (p) =>
-      /play booster (display|box)\b/i.test(p.name) &&
-      !/\b(case|bundle|collector|sleeved|japanese|jumpstart|prerelease)\b/i.test(p.name),
-  );
-  candidates.sort((a, b) => Number(/display/i.test(b.name)) - Number(/display/i.test(a.name)));
+/**
+ * The display (the 12-, 30- or 36-pack box) of one booster type, not a case, bundle or
+ * single pack. Special editions and other variants lose to the plain listing.
+ */
+export function findBoxProduct(products: TcgProduct[], type: BoosterType, opts: ClassifyOptions = {}): TcgProduct | null {
+  const candidates = products.filter((p) => classifySealed(p, opts) === BOOSTER_KINDS[type].display && !/special edition/i.test(p.name));
+  const rank = (p: TcgProduct) => [Number(/[([]/.test(p.name)), Number(!/display/i.test(p.name)), p.name.length];
+  candidates.sort((a, b) => {
+    const [x, y] = [rank(a), rank(b)];
+    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+  });
   return candidates[0] ?? null;
 }
 
@@ -82,26 +86,53 @@ function isSingle(p: TcgProduct): boolean {
 // Other-language printings: priced against English singles they'd be misleading.
 const FOREIGN = /\((japanese|jp|chinese|korean|german|french|italian|spanish|portuguese|russian)\)|\bjapanese\b/i;
 
+const BOOSTER_KINDS: Record<BoosterType, { display: SealedKind; pack: SealedKind; case: SealedKind }> = {
+  play: { display: "Play Booster Display", pack: "Play Booster Pack", case: "Play Booster Case" },
+  draft: { display: "Draft Booster Display", pack: "Draft Booster Pack", case: "Draft Booster Case" },
+  set: { display: "Set Booster Display", pack: "Set Booster Pack", case: "Set Booster Case" },
+  collector: { display: "Collector Booster Display", pack: "Collector Booster Pack", case: "Collector Booster Case" },
+};
+
+export interface ClassifyOptions {
+  /** A Commander companion group: any sealed deck in it is a precon. */
+  commander?: boolean;
+  /**
+   * What an unqualified "Booster Box" or "Booster Pack" holds. Before Set Boosters
+   * (2020) TCGplayer lists Draft Boosters that way.
+   */
+  plainBooster?: BoosterType;
+}
+
+/** Which booster a listing is made of, from its name. */
+function boosterNamed(n: string, plain?: BoosterType): BoosterType | null {
+  if (/collector booster/i.test(n)) return "collector";
+  if (/jumpstart/i.test(n)) return null;
+  if (/play booster/i.test(n)) return "play";
+  if (/draft booster/i.test(n)) return "draft";
+  if (/\bset booster/i.test(n)) return "set";
+  if (plain && /(^|\s[-–]\s)booster (box|display|pack|case)\b/i.test(n)) return plain;
+  return null;
+}
+
 /**
  * What kind of sealed product a TCGplayer listing is, or null for singles and non-product
- * listings. In a Commander companion group, any sealed deck is a Commander precon.
+ * listings.
  */
-export function classifySealed(p: TcgProduct, opts: { commander?: boolean } = {}): SealedKind | null {
+export function classifySealed(p: TcgProduct, opts: ClassifyOptions = {}): SealedKind | null {
   const n = p.name;
   if (isSingle(p)) return null;
   if (/\b(token|art card|art series|emblem|oversized|checklist|code card)\b/i.test(n)) return null;
   if (FOREIGN.test(n)) return null;
   // "Case", "Display Case" and "MasterCase" all mean a sealed case of the product.
   const isCase = /case\b/i.test(n) && !/showcase/i.test(n);
-  if (/collector booster/i.test(n)) {
-    if (isCase) return "Collector Booster Case";
-    return /\b(display|box)\b/i.test(n) ? "Collector Booster Display" : "Collector Booster Pack";
-  }
-  if (/play booster/i.test(n) && !/jumpstart/i.test(n)) {
-    if (isCase) return "Play Booster Case";
-    if (/\b(display|box)\b/i.test(n)) return "Play Booster Display";
-    if (/sleeved/i.test(n)) return "Sleeved Play Booster";
-    return "Play Booster Pack";
+  const booster = boosterNamed(n, opts.plainBooster);
+  if (booster) {
+    // Sample packs hold two or three cards, not a booster.
+    if (/sample/i.test(n)) return "Other";
+    if (isCase) return BOOSTER_KINDS[booster].case;
+    if (/\b(display|box)\b/i.test(n)) return BOOSTER_KINDS[booster].display;
+    if (booster === "play" && /sleeved/i.test(n)) return "Sleeved Play Booster";
+    return BOOSTER_KINDS[booster].pack;
   }
   if (isCase) return "Case";
   if (/bundle booster/i.test(n)) return "Other";
@@ -116,24 +147,24 @@ export function classifySealed(p: TcgProduct, opts: { commander?: boolean } = {}
   return null;
 }
 
+/** Packs in a display of each booster the set has, e.g. { play: 30, collector: 12 }. */
+export type Displays = Partial<Record<BoosterType, number>>;
+
 /**
- * How many Play Boosters a product holds, where that's fixed and known. Only the plain
- * "<set> - Bundle" counts as nine; themed bundles (Finish Line, Codex, Commander's…) differ.
+ * Which boosters a product holds and how many, where that's fixed and known: packs,
+ * displays, Play Booster cases (six displays), and the plain "<set> - Bundle" of the
+ * Play Booster era (nine). Themed bundles and older bundles vary, so they get none.
  */
-export function playBoostersIn(kind: SealedKind, packsPerBox: number, name = ""): number | null {
-  switch (kind) {
-    case "Play Booster Pack":
-    case "Sleeved Play Booster":
-      return 1;
-    case "Play Booster Display":
-      return packsPerBox;
-    case "Play Booster Case":
-      return packsPerBox * 6;
-    case "Bundle":
-      return /(^|\s[-–]\s)bundle$/i.test(name.trim()) ? 9 : null;
-    default:
-      return null;
+export function boostersIn(kind: SealedKind, displays: Displays, name = ""): { booster: BoosterType; packs: number } | null {
+  for (const type of BOOSTER_TYPES) {
+    const k = BOOSTER_KINDS[type];
+    if (kind === k.pack || (type === "play" && kind === "Sleeved Play Booster")) return { booster: type, packs: 1 };
+    const display = displays[type];
+    if (kind === k.display) return display ? { booster: type, packs: display } : null;
+    if (kind === k.case) return type === "play" && display ? { booster: type, packs: display * 6 } : null;
   }
+  if (kind === "Bundle" && displays.play && /(^|\s[-–]\s)bundle$/i.test(name.trim())) return { booster: "play", packs: 9 };
+  return null;
 }
 
 const KIND_ORDER: SealedKind[] = [
@@ -141,11 +172,17 @@ const KIND_ORDER: SealedKind[] = [
   "Play Booster Pack",
   "Sleeved Play Booster",
   "Play Booster Case",
-  "Bundle",
-  "Gift Bundle",
+  "Draft Booster Display",
+  "Draft Booster Pack",
+  "Draft Booster Case",
+  "Set Booster Display",
+  "Set Booster Pack",
+  "Set Booster Case",
   "Collector Booster Display",
   "Collector Booster Pack",
   "Collector Booster Case",
+  "Bundle",
+  "Gift Bundle",
   "Prerelease Pack",
   "Commander Deck",
   "Starter Kit",
@@ -156,38 +193,45 @@ const KIND_ORDER: SealedKind[] = [
 ];
 
 export interface SealedResult {
-  box: BoxPrice | null;
+  /** TCGplayer's market price for each booster's display, where it has one. */
+  boxes: Partial<Record<BoosterType, BoxPrice>>;
   products: SealedProduct[];
+}
+
+export interface SealedQuery {
+  code: string;
+  name: string;
+  releasedAt: string;
+  displays: Displays;
+}
+
+/** Before Play Boosters, a plain "Booster Box" on TCGplayer is a Draft Booster display. */
+function classifyOptions(displays: Displays): ClassifyOptions {
+  return displays.play ? {} : displays.draft ? { plainBooster: "draft" } : {};
 }
 
 /**
  * Every sealed product TCGplayer lists for the set and its Commander and Jumpstart companions,
- * with today's prices, plus the Play Booster display price.
+ * with today's prices, plus the display price of each booster.
  */
-export async function fetchSealed(
-  code: string,
-  name: string,
-  packsPerBox: number,
-  releasedAt: string,
-  fetchImpl: FetchLike = (u, i) => fetch(u, i),
-): Promise<SealedResult> {
+export async function fetchSealed(query: SealedQuery, fetchImpl: FetchLike = (u, i) => fetch(u, i)): Promise<SealedResult> {
   const get = async <T>(url: string): Promise<T[]> => {
     const res = await fetchImpl(url, { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error(`TCGCSV ${res.status} for ${url}`);
     return ((await res.json()) as Envelope<T>).results ?? [];
   };
   const groups = await get<TcgGroup>(`${TCGCSV}/${MAGIC}/groups`);
-  const group = findGroup(groups, code, name);
-  if (!group) return { box: null, products: [] };
+  const group = findGroup(groups, query.code, query.name);
+  if (!group) return { boxes: {}, products: [] };
   const load = (g: TcgGroup) =>
     Promise.all([get<TcgProduct>(`${TCGCSV}/${MAGIC}/${g.groupId}/products`), get<TcgPrice>(`${TCGCSV}/${MAGIC}/${g.groupId}/prices`)]);
 
   const [products, prices] = await load(group);
-  const result = sealedFrom(products, prices, packsPerBox);
-  for (const companion of findCompanionGroups(groups, group, name, releasedAt)) {
+  const result = sealedFrom(products, prices, query.displays);
+  for (const companion of findCompanionGroups(groups, group, query.name, query.releasedAt)) {
     try {
       const [cp, cx] = await load(companion);
-      result.products.push(...toSealed(cp, cx, packsPerBox, /commander/i.test(companion.name)));
+      result.products.push(...toSealed(cp, cx, query.displays, /commander/i.test(companion.name)));
     } catch {
       // A missing companion group shouldn't cost us the main set's prices.
     }
@@ -212,20 +256,23 @@ function bySealedOrder(a: SealedProduct, b: SealedProduct): number {
 }
 
 /** Sealed products in one TCGplayer group. `commander` marks a Commander companion group. */
-export function toSealed(products: TcgProduct[], prices: TcgPrice[], packsPerBox: number, commander = false): SealedProduct[] {
+export function toSealed(products: TcgProduct[], prices: TcgPrice[], displays: Displays, commander = false): SealedProduct[] {
   const priceOf = priceIndex(prices);
+  const opts = { ...classifyOptions(displays), commander };
   const sealed: SealedProduct[] = [];
   for (const p of products) {
-    const kind = classifySealed(p, { commander });
+    const kind = classifySealed(p, opts);
     if (!kind) continue;
     const row = priceOf.get(p.productId);
+    const inside = boostersIn(kind, displays, p.name);
     sealed.push({
       productId: p.productId,
       name: p.name,
       kind,
       market: row?.marketPrice ?? row?.midPrice ?? null,
       low: row?.lowPrice ?? null,
-      packs: playBoostersIn(kind, packsPerBox, p.name),
+      packs: inside?.packs ?? null,
+      booster: inside?.booster ?? null,
       url: productUrl(p),
       image: p.imageUrl ?? null,
     });
@@ -233,16 +280,17 @@ export function toSealed(products: TcgProduct[], prices: TcgPrice[], packsPerBox
   return sealed.sort(bySealedOrder);
 }
 
-export function sealedFrom(products: TcgProduct[], prices: TcgPrice[], packsPerBox: number): SealedResult {
+export function sealedFrom(products: TcgProduct[], prices: TcgPrice[], displays: Displays): SealedResult {
   const priceOf = priceIndex(prices);
   const asOf = new Date().toISOString();
-  const url = productUrl;
-  const sealed = toSealed(products, prices, packsPerBox);
-
-  const display = findPlayBoxProduct(products);
-  const row = display ? priceOf.get(display.productId) : undefined;
-  const usd = row?.marketPrice ?? row?.midPrice ?? row?.lowPrice ?? null;
-  const box: BoxPrice | null =
-    display && usd != null ? { usd, source: "tcgplayer", productName: display.name, productUrl: url(display), asOf } : null;
-  return { box, products: sealed };
+  const opts = classifyOptions(displays);
+  const boxes: SealedResult["boxes"] = {};
+  for (const type of BOOSTER_TYPES) {
+    if (!displays[type]) continue;
+    const display = findBoxProduct(products, type, opts);
+    const row = display ? priceOf.get(display.productId) : undefined;
+    const usd = row?.marketPrice ?? row?.midPrice ?? row?.lowPrice ?? null;
+    if (display && usd != null) boxes[type] = { usd, source: "tcgplayer", productName: display.name, productUrl: productUrl(display), asOf };
+  }
+  return { boxes, products: toSealed(products, prices, displays) };
 }

@@ -88,11 +88,17 @@ export type SealedKind =
   | "Play Booster Pack"
   | "Sleeved Play Booster"
   | "Play Booster Case"
-  | "Bundle"
-  | "Gift Bundle"
+  | "Draft Booster Display"
+  | "Draft Booster Pack"
+  | "Draft Booster Case"
+  | "Set Booster Display"
+  | "Set Booster Pack"
+  | "Set Booster Case"
   | "Collector Booster Display"
   | "Collector Booster Pack"
   | "Collector Booster Case"
+  | "Bundle"
+  | "Gift Bundle"
   | "Prerelease Pack"
   | "Commander Deck"
   | "Starter Kit"
@@ -110,25 +116,65 @@ export interface SealedProduct {
   market: number | null;
   /** Lowest current listing. */
   low: number | null;
-  /** Play Boosters inside, when the product holds a fixed number of them. */
+  /** Boosters inside, when the product holds a fixed number of one kind. */
   packs: number | null;
+  /** Which booster `packs` counts. */
+  booster: BoosterType | null;
   url: string;
   image: string | null;
 }
 
-export interface Snapshot {
-  version: 1;
+/**
+ * The booster products we price. Play Boosters replaced Draft and Set Boosters with
+ * Murders at Karlov Manor (2024); Collector Boosters run alongside both.
+ */
+export type BoosterType = "play" | "draft" | "set" | "collector";
+
+/** One booster product of a set: its pack model and what a sealed display of it costs. */
+export interface BoosterProduct {
+  type: BoosterType;
+  /** "Play Booster", "Collector Booster". */
+  name: string;
+  packsPerBox: number;
+  cardsPerPack: number | null;
+  boxPrice: BoxPrice;
+  model: BoosterModel;
+  modelSource: ModelSource;
+  /** Caveats that apply to this booster only. */
+  notes: string[];
+}
+
+/** data/<code>.json: a set, each booster product it has, and the card pool they share. */
+export interface SetSnapshot {
+  version: 2;
   code: string;
   name: string;
   releasedAt: string;
   iconSvg: string | null;
+  /** Main booster first (Play, or Draft before 2024), then Set and Collector. */
+  boosters: BoosterProduct[];
+  /** Every sealed product for the set with TCGplayer prices; absent in browser-built snapshots. */
+  sealed?: SealedProduct[];
+  /** Model entries of every booster index into this list. */
+  cards: CardRecord[];
+  generatedAt: string;
+  sources: Source[];
+  notes: string[];
+}
+
+/** One booster of one set, flattened: what the calculator, charts and simulation work on. */
+export interface Snapshot {
+  code: string;
+  name: string;
+  releasedAt: string;
+  iconSvg: string | null;
+  booster: BoosterType;
   product: {
     name: string;
     packsPerBox: number;
     cardsPerPack: number | null;
   };
   boxPrice: BoxPrice;
-  /** Every sealed product for the set with TCGplayer prices; absent in browser-built snapshots. */
   sealed?: SealedProduct[];
   model: BoosterModel;
   modelSource: ModelSource;
@@ -138,12 +184,10 @@ export interface Snapshot {
   notes: string[];
 }
 
-/** Summary row written to data/index.json for the home page. */
-export interface SetSummary {
-  code: string;
+/** One booster's numbers in data/index.json. */
+export interface BoosterSummary {
+  type: BoosterType;
   name: string;
-  releasedAt: string;
-  iconSvg: string | null;
   packsPerBox: number;
   boxPrice: BoxPrice;
   evBox: number;
@@ -159,12 +203,22 @@ export interface SetSummary {
     treatmentLabel: string;
   } | null;
   modelSource: ModelSource["kind"];
-  /** Floor and fees behind evBox and ratio (older snapshots: full market price). */
-  params?: { floor: number; fees: number };
+}
+
+/** Summary row written to data/index.json for the home page. */
+export interface SetSummary {
+  code: string;
+  name: string;
+  releasedAt: string;
+  iconSvg: string | null;
+  /** Main booster first, as in the snapshot. */
+  boosters: BoosterSummary[];
+  /** Floor and fees behind evBox and ratio. */
+  params: { floor: number; fees: number };
 }
 
 export interface SnapshotIndex {
-  version: 1;
+  version: 2;
   generatedAt: string;
   sets: SetSummary[];
 }

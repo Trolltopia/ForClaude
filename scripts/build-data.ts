@@ -4,20 +4,20 @@
 //   npm run data -- fra msh      # just these
 //   npm run data -- --report fra # also print each slot and the top cards
 //
-// Booster structure comes from MTGJSON when it has a Play Booster model for the set,
-// otherwise from the hand-written collation in src/sets/rules. Card prices are
-// TCGplayer market prices via Scryfall; the box price is TCGplayer's market price for
-// the Play Booster display via TCGCSV.
+// Each set gets every booster it was sold in (Play or Draft, Set, Collector). Booster
+// structure comes from MTGJSON's print sheets where it has them, otherwise from the
+// hand-written collations in src/sets/rules. Card prices are TCGplayer market prices via
+// Scryfall; box prices are TCGplayer's market prices for each display via TCGCSV.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { buildFromMtgjson, buildFromRules, summarise } from "../src/lib/data/build";
-import { computeEv, DEFAULT_PARAMS, MARKET_PARAMS } from "../src/lib/engine/ev";
+import { BOOSTER_NAME, boosterView, upgradeIndex } from "../src/lib/boosters";
+import { buildSetSnapshot, summarise } from "../src/lib/data/build";
 import type { MtgjsonSetFile } from "../src/lib/data/mtgjson";
-import { pickBooster } from "../src/lib/data/mtgjson";
 import { createScryfallClient } from "../src/lib/data/scryfall";
 import { fetchSealed } from "../src/lib/data/tcgcsv";
-import type { SetSummary, Snapshot, SnapshotIndex } from "../src/lib/types";
+import { computeEv, DEFAULT_PARAMS, MARKET_PARAMS } from "../src/lib/engine/ev";
+import type { SetSnapshot, SetSummary, Snapshot, SnapshotIndex } from "../src/lib/types";
 import { CATALOG, type CatalogEntry } from "../src/sets/catalog";
 
 const OUT = join(import.meta.dirname, "..", "public", "data");
@@ -58,36 +58,32 @@ function tcgFetch(url: string, init?: RequestInit): Promise<Response> {
   return tcgCache.get(url)!.then((r) => r.clone());
 }
 
-async function buildSet(entry: CatalogEntry): Promise<Snapshot> {
-  const file = await mtgjson(entry.code);
-  const picked = file ? pickBooster(file.data) : null;
-  let snapshot: Snapshot | null = null;
-
-  // Prefer a hand-written collation over MTGJSON's older booster types: a set that only
-  // has "draft" data in MTGJSON but a Play Booster rules file is better modelled by the rules.
-  const useRules = entry.rules && (!picked || picked.name !== "play");
-  if (file && picked && !useRules) {
-    const extraCodes = (picked.config.sourceSetCodes ?? []).filter((c) => c.toUpperCase() !== entry.code.toUpperCase());
-    const extras = (await Promise.all(extraCodes.map(mtgjson))).filter((f): f is MtgjsonSetFile => f != null);
-    snapshot = await buildFromMtgjson(entry, file, extras, scryfall);
-  }
-  if (!snapshot && entry.rules) snapshot = await buildFromRules(entry, scryfall);
-  if (!snapshot) throw new Error("no MTGJSON booster data and no rules config");
+async function buildSet(entry: CatalogEntry): Promise<SetSnapshot> {
+  const snapshot = await buildSetSnapshot(entry, { client: scryfall, mtgjson });
+  const available = Object.keys((await mtgjson(entry.code))?.data.booster ?? {});
+  if (available.length) console.log(`  MTGJSON boosters: ${available.join(", ")}`);
 
   try {
-    const { box, products } = await fetchSealed(entry.code, snapshot.name, entry.packsPerBox, snapshot.releasedAt, tcgFetch);
+    const displays = Object.fromEntries(entry.boosters.map((b) => [b.type, b.packsPerBox]));
+    const { boxes, products } = await fetchSealed(
+      { code: entry.code, name: snapshot.name, releasedAt: snapshot.releasedAt, displays },
+      tcgFetch,
+    );
     snapshot.sealed = products;
     if (products.length) snapshot.sources.push({ label: "TCGCSV — TCGplayer sealed product prices", url: "https://tcgcsv.com" });
-    if (box) snapshot.boxPrice = box;
-    else snapshot.notes.push("No TCGplayer market price found for the Play Booster display; using an estimate.");
+    for (const booster of snapshot.boosters) {
+      const box = boxes[booster.type];
+      if (box) booster.boxPrice = box;
+      else booster.notes.push(`No TCGplayer market price found for the ${booster.name} display${booster.boxPrice.usd != null ? "; using an estimate" : ""}.`);
+    }
   } catch (err) {
-    snapshot.notes.push("TCGplayer sealed prices unavailable today; the box price is an estimate.");
+    snapshot.notes.push("TCGplayer sealed prices unavailable today; box prices are estimates.");
     console.warn(`  sealed prices failed: ${(err as Error).message}`);
   }
   return snapshot;
 }
 
-/** A plain-text breakdown for eyeballing a snapshot in CI logs. */
+/** A plain-text breakdown of one booster, for eyeballing a snapshot in CI logs. */
 function report(snapshot: Snapshot) {
   const ev = computeEv(snapshot, MARKET_PARAMS);
   const site = computeEv(snapshot, DEFAULT_PARAMS);
@@ -96,7 +92,9 @@ function report(snapshot: Snapshot) {
   const usd = (n: number | null) => (n == null ? "—" : `$${n.toFixed(2)}`);
   const box = snapshot.boxPrice.usd;
   console.log(
-    `    packs/box: ${snapshot.product.packsPerBox}, layouts: ${snapshot.model.variants.length}, priced: ${(ev.pricedShare * 100).toFixed(1)}%`,
+    `  ${snapshot.product.name}: ${snapshot.product.packsPerBox} packs/box, ${snapshot.product.cardsPerPack ?? "?"} cards/pack, ` +
+      `layouts: ${snapshot.model.variants.length}, priced: ${(ev.pricedShare * 100).toFixed(1)}%, ` +
+      `box ${usd(box)} (${snapshot.boxPrice.source}${snapshot.boxPrice.productName ? `: ${snapshot.boxPrice.productName}` : ""})`,
   );
   const x = (v: number) => (box ? `${(box / v).toFixed(2)}x` : "?");
   console.log(
@@ -107,15 +105,21 @@ function report(snapshot: Snapshot) {
       `    ${pad(s.label, 34)} ${s.perPack.toFixed(2).padStart(5)}/pack  ${String(s.distinctCards).padStart(4)} cards  avg ${usd(s.avgValue).padStart(8)}  box ${usd(s.evBox).padStart(9)}  ${(s.share * 100).toFixed(1).padStart(5)}%`,
     );
   }
-  for (const c of ev.cards.slice(0, 8)) {
+  for (const c of ev.cards.slice(0, 6)) {
     console.log(
       `    top: ${pad(`${c.card.name} [${c.card.set} ${c.card.cn}]${c.foil ? " foil" : ""}`, 46)} ${usd(c.price).padStart(9)}  1 in ${Math.round(1 / c.perPack)} packs  adds ${usd(c.evBox)}`,
     );
   }
+}
+
+function reportSet(snapshot: SetSnapshot) {
+  const usd = (n: number | null) => (n == null ? "—" : `$${n.toFixed(2)}`);
+  for (const booster of snapshot.boosters) report(boosterView(snapshot, booster));
   for (const s of snapshot.sealed ?? []) {
-    console.log(`    sealed: ${pad(s.kind, 26)} ${usd(s.market).padStart(9)}  low ${usd(s.low).padStart(9)}  ${s.name}`);
+    const inside = s.packs ? ` = ${s.packs} × ${BOOSTER_NAME[s.booster!]}` : "";
+    console.log(`    sealed: ${s.kind.padEnd(26)} ${usd(s.market).padStart(9)}  low ${usd(s.low).padStart(9)}  ${s.name}${inside}`);
   }
-  for (const n of snapshot.notes) console.log(`    note: ${n}`);
+  for (const n of [...snapshot.notes, ...snapshot.boosters.flatMap((b) => b.notes.map((x) => `${b.name}: ${x}`))]) console.log(`    note: ${n}`);
 }
 
 async function main() {
@@ -128,7 +132,7 @@ async function main() {
   // Keep summaries for sets we don't rebuild this run, so a partial run doesn't empty the board.
   let previous: SetSummary[] = [];
   try {
-    previous = (JSON.parse(await readFile(join(OUT, "index.json"), "utf8")) as SnapshotIndex).sets;
+    previous = upgradeIndex(JSON.parse(await readFile(join(OUT, "index.json"), "utf8"))).sets;
   } catch {
     previous = [];
   }
@@ -143,11 +147,11 @@ async function main() {
       await writeFile(join(OUT, `${entry.code}.json`), JSON.stringify(snapshot));
       const summary = summarise(snapshot);
       summaries.set(entry.code, summary);
-      console.log(
-        `  ${snapshot.modelSource.kind}, ${snapshot.cards.length} cards, EV $${summary.evBox.toFixed(2)}/box, ` +
-          `box $${snapshot.boxPrice.usd ?? "?"} (${snapshot.boxPrice.source}), ${((Date.now() - started) / 1000).toFixed(1)}s`,
+      const lines = summary.boosters.map(
+        (b) => `${b.name} EV $${b.evBox.toFixed(2)}/box vs $${b.boxPrice.usd ?? "?"} (${b.boxPrice.source}, ${b.modelSource})`,
       );
-      if (verbose) report(snapshot);
+      console.log(`  ${snapshot.cards.length} cards · ${lines.join(" · ")} · ${((Date.now() - started) / 1000).toFixed(1)}s`);
+      if (verbose) reportSet(snapshot);
     } catch (err) {
       failures++;
       console.warn(`  skipped: ${(err as Error).message}`);
@@ -156,7 +160,7 @@ async function main() {
 
   const order = new Map(CATALOG.map((e, i) => [e.code, i]));
   const index: SnapshotIndex = {
-    version: 1,
+    version: 2,
     generatedAt: new Date().toISOString(),
     sets: [...summaries.values()].filter((s) => order.has(s.code)).sort((a, b) => order.get(a.code)! - order.get(b.code)!),
   };

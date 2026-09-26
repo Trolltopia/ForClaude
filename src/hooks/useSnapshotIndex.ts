@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { upgradeIndex } from "@/lib/boosters";
 import type { SnapshotIndex } from "@/lib/types";
 import { asset } from "@/lib/utils";
 
@@ -18,7 +19,9 @@ export function useSnapshotIndex() {
   const [state, setState] = useState<{ status: Status; index: SnapshotIndex | null }>({ status: "loading", index: null });
   useEffect(() => {
     let alive = true;
-    indexPromise ??= getJson<SnapshotIndex>("data/index.json").catch(() => null);
+    indexPromise ??= getJson<Parameters<typeof upgradeIndex>[0]>("data/index.json")
+      .then((raw) => (raw ? upgradeIndex(raw) : null))
+      .catch(() => null);
     indexPromise.then((index) => alive && setState({ status: "ready", index }));
     return () => {
       alive = false;

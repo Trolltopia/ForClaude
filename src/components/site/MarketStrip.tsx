@@ -7,7 +7,7 @@ import { CATALOG } from "@/sets/catalog";
 /** One line per set, like a stock ticker: code, price-to-value ratio, and which side of 1.00× it's on. */
 export function MarketStrip() {
   const { index } = useSnapshotIndex();
-  const [, params] = useRoute("/sets/:code");
+  const [, params] = useRoute("/sets/:code/:booster?");
   const byCode = new Map(index?.sets.map((s) => [s.code, s]));
 
   return (
@@ -15,7 +15,8 @@ export function MarketStrip() {
       <ul className="mx-auto flex max-w-page overflow-x-auto px-4 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden">
         {CATALOG.map((entry) => {
           const s = byCode.get(entry.code);
-          const r = s?.ratio ?? null;
+          // Each set's main booster: Play, or Draft before 2024.
+          const r = s?.boosters[0]?.ratio ?? null;
           const active = params?.code === entry.code;
           return (
             <li key={entry.code} className="shrink-0">

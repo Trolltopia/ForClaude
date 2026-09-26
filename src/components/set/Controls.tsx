@@ -83,9 +83,12 @@ export function Controls({
   fees,
   onFees,
   onReset,
+  productName,
   packsPerBox,
   defaultFees,
 }: {
+  /** "Play Booster", "Collector Booster". */
+  productName: string;
   packsPerBox: number;
   boxPrice: number | null;
   marketPrice: BoxPrice;
@@ -109,8 +112,8 @@ export function Controls({
           <div className="mb-1.5 flex items-center gap-2 font-sans text-[13px] font-bold">
             Box price
             <InfoTip>
-              What you&rsquo;d pay for a sealed {packsPerBox}-pack Play Booster display. Defaults to TCGplayer&rsquo;s market price; type your own to
-              compare.
+              What you&rsquo;d pay for a sealed {packsPerBox}-pack {productName} display. Defaults to TCGplayer&rsquo;s market price;
+              type your own to compare.
             </InfoTip>
           </div>
           <div className="flex items-center gap-3">
@@ -134,8 +137,10 @@ export function Controls({
                     </>
                   )}
                 </>
-              ) : (
+              ) : marketPrice.usd != null ? (
                 <>Street-price estimate. Type what you&rsquo;d actually pay.</>
+              ) : (
+                <>No market price for this box yet. Type what you&rsquo;d pay.</>
               )}
             </div>
           </div>

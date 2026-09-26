@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PARAMS } from "../src/lib/engine/ev";
 import {
+  boostersIn,
   classifySealed,
   fetchSealed,
   findCompanionGroups,
-  playBoostersIn,
   sealedFrom,
   type TcgGroup,
   type TcgProduct,
@@ -44,11 +44,47 @@ describe("classifySealed", () => {
     expect(kind("Secrets of Strixhaven - Fujichoco x Wandering Emperor Promo Pack (JP)")).toBeNull();
   });
 
-  it("counts nine boosters only in a plain bundle", () => {
-    expect(playBoostersIn("Bundle", 30, "Aetherdrift - Bundle")).toBe(9);
-    expect(playBoostersIn("Bundle", 30, "Aetherdrift - Finish Line Bundle")).toBeNull();
-    expect(playBoostersIn("Bundle", 30, "Avatar: The Last Airbender - Commander's Bundle")).toBeNull();
-    expect(playBoostersIn("Case", 30, "Aetherdrift - Bundle Case")).toBeNull();
+  it("counts nine boosters only in a plain Play Booster bundle", () => {
+    const play = { play: 30, collector: 12 };
+    expect(boostersIn("Bundle", play, "Aetherdrift - Bundle")).toEqual({ booster: "play", packs: 9 });
+    expect(boostersIn("Bundle", play, "Aetherdrift - Finish Line Bundle")).toBeNull();
+    expect(boostersIn("Bundle", play, "Avatar: The Last Airbender - Commander's Bundle")).toBeNull();
+    expect(boostersIn("Case", play, "Aetherdrift - Bundle Case")).toBeNull();
+    // Bundles before Play Boosters held Set or Draft Boosters in varying numbers.
+    expect(boostersIn("Bundle", { draft: 36, set: 30, collector: 12 }, "Wilds of Eldraine - Bundle")).toBeNull();
+  });
+
+  it("sorts Draft and Set Booster listings", () => {
+    const kind = (name: string) => classifySealed(P(0, name));
+    expect(kind("Wilds of Eldraine - Draft Booster Display")).toBe("Draft Booster Display");
+    expect(kind("Wilds of Eldraine - Draft Booster Pack")).toBe("Draft Booster Pack");
+    expect(kind("Wilds of Eldraine - Set Booster Display")).toBe("Set Booster Display");
+    expect(kind("Wilds of Eldraine - Set Booster Pack")).toBe("Set Booster Pack");
+    expect(kind("Wilds of Eldraine - Set Booster Display Case")).toBe("Set Booster Case");
+    expect(kind("Wilds of Eldraine - Collector Booster Display")).toBe("Collector Booster Display");
+    expect(kind("Kaldheim - Collector Booster Sample Pack")).toBe("Other");
+    expect(kind("Zendikar Rising - Theme Booster")).toBe("Other");
+    expect(kind("Wilds of Eldraine - Bundle")).toBe("Bundle");
+  });
+
+  it("reads a plain booster box as Draft Boosters before Set Boosters existed", () => {
+    const opts = { plainBooster: "draft" as const };
+    expect(classifySealed(P(0, "Theros Beyond Death - Booster Box"), opts)).toBe("Draft Booster Display");
+    expect(classifySealed(P(0, "Theros Beyond Death - Booster Pack"), opts)).toBe("Draft Booster Pack");
+    expect(classifySealed(P(0, "Theros Beyond Death - Booster Box Case"), opts)).toBe("Draft Booster Case");
+    expect(classifySealed(P(0, "Theros Beyond Death - Theme Booster Pack"), opts)).toBe("Other");
+    expect(classifySealed(P(0, "Theros Beyond Death - Booster Box"))).toBe("Other");
+  });
+
+  it("counts boosters in packs, displays and Play Booster cases", () => {
+    const d = { draft: 36, set: 30, collector: 12 };
+    expect(boostersIn("Set Booster Pack", d)).toEqual({ booster: "set", packs: 1 });
+    expect(boostersIn("Set Booster Display", d)).toEqual({ booster: "set", packs: 30 });
+    expect(boostersIn("Draft Booster Display", d)).toEqual({ booster: "draft", packs: 36 });
+    expect(boostersIn("Collector Booster Display", d)).toEqual({ booster: "collector", packs: 12 });
+    expect(boostersIn("Collector Booster Case", d)).toBeNull();
+    expect(boostersIn("Play Booster Display", d)).toBeNull();
+    expect(boostersIn("Sleeved Play Booster", { play: 30 })).toEqual({ booster: "play", packs: 1 });
   });
 
   it("skips singles, tokens and art cards", () => {
@@ -60,12 +96,12 @@ describe("classifySealed", () => {
 });
 
 describe("sealedFrom", () => {
-  it("prices products, counts boosters and finds the display", () => {
+  it("prices products, counts boosters and finds each display", () => {
     const products = [
       P(1, "Test Play Booster Display", { url: "https://tcg/1", imageUrl: "https://img/1" }),
       P(2, "Test Play Booster Pack"),
       P(3, "Test - Bundle"),
-      P(4, "Test Collector Booster Display"),
+      P(4, "Test Collector Booster Display", { url: "https://tcg/4" }),
       P(5, "Mox Test", { extendedData: [{ name: "Number", value: "1" }] }),
     ];
     const prices = [
@@ -75,20 +111,35 @@ describe("sealedFrom", () => {
       { productId: 4, marketPrice: 320, lowPrice: 300, subTypeName: "Normal" },
       { productId: 5, marketPrice: 99, subTypeName: "Normal" },
     ];
-    const { box, products: sealed } = sealedFrom(products, prices, 30);
-    expect(box?.usd).toBe(140);
-    expect(box?.productUrl).toBe("https://tcg/1");
-    expect(sealed.map((s) => s.kind)).toEqual(["Play Booster Display", "Play Booster Pack", "Bundle", "Collector Booster Display"]);
-    expect(sealed[0].packs).toBe(30);
-    expect(sealed[1].packs).toBe(1);
-    expect(sealed[2].market).toBe(49.99);
-    expect(sealed[2].packs).toBe(9);
-    expect(sealed[3].packs).toBeNull();
+    const { boxes, products: sealed } = sealedFrom(products, prices, { play: 30, collector: 12 });
+    expect(boxes.play?.usd).toBe(140);
+    expect(boxes.play?.productUrl).toBe("https://tcg/1");
+    expect(boxes.collector?.usd).toBe(320);
+    expect(boxes.collector?.productUrl).toBe("https://tcg/4");
+    expect(sealed.map((s) => s.kind)).toEqual(["Play Booster Display", "Play Booster Pack", "Collector Booster Display", "Bundle"]);
+    expect(sealed.map((s) => [s.booster, s.packs])).toEqual([
+      ["play", 30],
+      ["play", 1],
+      ["collector", 12],
+      ["play", 9],
+    ]);
+    expect(sealed[3].market).toBe(49.99);
     expect(sealed[0].image).toBe("https://img/1");
   });
 
-  it("knows cases hold six displays", () => {
-    expect(playBoostersIn("Play Booster Case", 36)).toBe(216);
+  it("finds Draft, Set and Collector displays for an older set", () => {
+    const products = [P(1, "Kaldheim - Draft Booster Display"), P(2, "Kaldheim - Set Booster Display"), P(3, "Kaldheim - Collector Booster Display")];
+    const prices = [
+      { productId: 1, marketPrice: 150, subTypeName: "Normal" },
+      { productId: 2, marketPrice: 120, subTypeName: "Normal" },
+      { productId: 3, marketPrice: 260, subTypeName: "Normal" },
+    ];
+    const { boxes } = sealedFrom(products, prices, { draft: 36, set: 30, collector: 12 });
+    expect([boxes.draft?.usd, boxes.set?.usd, boxes.collector?.usd]).toEqual([150, 120, 260]);
+  });
+
+  it("knows Play Booster cases hold six displays", () => {
+    expect(boostersIn("Play Booster Case", { play: 36 })).toEqual({ booster: "play", packs: 216 });
   });
 });
 
@@ -160,8 +211,12 @@ describe("Commander companion groups", () => {
         ]);
       return new Response("not found", { status: 404 });
     };
-    const { box, products } = await fetchSealed("dsk", "Duskmourn: House of Horror", 36, "2024-09-27", fake);
-    expect(box?.usd).toBe(198.16);
+    const { boxes, products } = await fetchSealed(
+      { code: "dsk", name: "Duskmourn: House of Horror", releasedAt: "2024-09-27", displays: { play: 36, collector: 12 } },
+      fake,
+    );
+    expect(boxes.play?.usd).toBe(198.16);
+    expect(boxes.collector).toBeUndefined();
     const precons = products.filter((p) => p.kind === "Commander Deck");
     expect(precons.map((p) => p.market)).toEqual([61.25, 54.5]);
     expect(products.some((p) => p.name.startsWith("Valgavoth"))).toBe(false);

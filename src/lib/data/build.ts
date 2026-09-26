@@ -1,7 +1,8 @@
+import { BOOSTER_NAME, boosterView, byBoosterOrder } from "../boosters";
 import { computeEv, DEFAULT_PARAMS, mostValuable } from "../engine/ev";
-import type { BoxPrice, CardRecord, SetSummary, Snapshot, Source } from "../types";
-import type { CatalogEntry } from "@/sets/catalog";
-import { buildModelFromMtgjson, pickBooster, remapModel, type MtgjsonSetFile } from "./mtgjson";
+import type { BoosterProduct, BoosterSummary, BoxPrice, CardRecord, SetSnapshot, SetSummary, Snapshot, Source } from "../types";
+import type { BoosterSpec, CatalogEntry } from "@/sets/catalog";
+import { boosterConfig, buildModelFromMtgjson, remapModel, type MtgjsonSetFile } from "./mtgjson";
 import { buildModelFromRules, rulesQueries } from "./rules";
 import { normaliseCard, type ScryfallClient, type ScryfallSet } from "./scryfall";
 
@@ -9,23 +10,29 @@ export const BASE_SOURCES: Source[] = [
   { label: "Scryfall — card data and TCGplayer market prices", url: "https://scryfall.com/docs/api" },
 ];
 
-function estimateBox(entry: CatalogEntry): BoxPrice {
-  return { usd: entry.boxEstimate, source: "estimate" };
+/** The cards every booster of a set can produce, one entry per Scryfall id. */
+export class CardPool {
+  readonly cards: CardRecord[] = [];
+  private readonly at = new Map<string, number>();
+
+  indexOf(id: string): number | undefined {
+    return this.at.get(id);
+  }
+
+  /** Add a card, or return where it already is. The first version added wins. */
+  add(card: CardRecord): number {
+    let i = this.at.get(card.id);
+    if (i === undefined) {
+      i = this.cards.length;
+      this.cards.push(card);
+      this.at.set(card.id, i);
+    }
+    return i;
+  }
 }
 
-function baseSnapshot(entry: CatalogEntry, set: ScryfallSet | null): Omit<Snapshot, "model" | "modelSource" | "cards"> {
-  return {
-    version: 1,
-    code: entry.code,
-    name: set?.name ?? entry.name,
-    releasedAt: set?.released_at ?? entry.releasedAt,
-    iconSvg: set?.icon_svg_uri ?? null,
-    product: { name: "Play Booster", packsPerBox: entry.packsPerBox, cardsPerPack: null },
-    boxPrice: estimateBox(entry),
-    generatedAt: new Date().toISOString(),
-    sources: [...BASE_SOURCES],
-    notes: [],
-  };
+function estimateBox(spec: BoosterSpec): BoxPrice {
+  return { usd: spec.estimate ?? null, source: "estimate" };
 }
 
 async function safeSet(client: ScryfallClient, code: string): Promise<ScryfallSet | null> {
@@ -36,59 +43,50 @@ async function safeSet(client: ScryfallClient, code: string): Promise<ScryfallSe
   }
 }
 
-/** Build a snapshot from a hand-written collation and a live Scryfall search. */
-export async function buildFromRules(entry: CatalogEntry, client: ScryfallClient): Promise<Snapshot> {
-  if (!entry.rules) throw new Error(`${entry.code} has no rules config`);
-  const set = await safeSet(client, entry.code);
+/** A booster built from a hand-written collation and a live Scryfall search. */
+async function rulesBooster(entry: CatalogEntry, spec: BoosterSpec, client: ScryfallClient, pool: CardPool): Promise<BoosterProduct> {
+  const rules = spec.rules!;
   const seen = new Set<string>();
   const cards: CardRecord[] = [];
-  for (const q of rulesQueries(entry.rules, entry.code)) {
+  for (const q of rulesQueries(rules, entry.code)) {
     for (const raw of await client.search(q)) {
       if (seen.has(raw.id)) continue;
       seen.add(raw.id);
       cards.push(normaliseCard(raw));
     }
   }
-  const { model, cards: labelled, emptySheets } = buildModelFromRules(entry.rules, cards, entry.code);
+  const { model, cards: labelled, emptySheets } = buildModelFromRules(rules, cards, entry.code);
 
-  // Drop cards no sheet can produce so the snapshot stays small.
-  const used = new Set<number>();
-  for (const sheet of Object.values(model.sheets)) for (const [i] of sheet.entries) used.add(i);
-  const kept: CardRecord[] = [];
+  // Only cards some sheet can produce go into the pool, so the snapshot stays small.
   const remap = new Map<number, number>();
-  labelled.forEach((c, i) => {
-    if (used.has(i)) {
-      remap.set(i, kept.length);
-      kept.push(c);
-    }
-  });
+  for (const sheet of Object.values(model.sheets)) {
+    for (const [i] of sheet.entries) if (!remap.has(i)) remap.set(i, pool.add(labelled[i]));
+  }
 
-  const base = baseSnapshot(entry, set);
-  const notes = [...(entry.rules.notes ?? [])];
+  const notes = [...(rules.notes ?? [])];
   for (const key of emptySheets) {
-    notes.push(`No cards found yet for "${entry.rules.sheets[key].label}"; its share of each slot is spread over the other outcomes.`);
+    notes.push(`No cards found yet for "${rules.sheets[key].label}"; its share of each slot is spread over the other outcomes.`);
   }
   return {
-    ...base,
-    product: { ...base.product, cardsPerPack: entry.rules.slots.reduce((s, x) => s + x.count, 0) },
+    type: spec.type,
+    name: BOOSTER_NAME[spec.type],
+    packsPerBox: spec.packsPerBox,
+    cardsPerPack: rules.slots.reduce((s, x) => s + x.count, 0),
+    boxPrice: estimateBox(spec),
     model: remapModel(model, (i) => remap.get(i)),
     modelSource: { kind: "rules", note: "Slot odds transcribed from the published collation." },
-    cards: kept,
-    sources: [...entry.rules.sources, ...base.sources],
     notes,
   };
 }
 
-/** Build a snapshot from MTGJSON's booster sheets, priced through Scryfall. */
-export async function buildFromMtgjson(
-  entry: CatalogEntry,
+/** Boosters built from MTGJSON's print sheets, with one Scryfall lookup for all of them. */
+async function mtgjsonBoosters(
+  specs: BoosterSpec[],
   setFile: MtgjsonSetFile,
   extraSets: MtgjsonSetFile[],
   client: ScryfallClient,
-): Promise<Snapshot | null> {
-  const picked = pickBooster(setFile.data);
-  if (!picked) return null;
-
+  pool: CardPool,
+): Promise<BoosterProduct[]> {
   const uuidToScryfall = new Map<string, string>();
   for (const file of [setFile, ...extraSets]) {
     for (const c of [...file.data.cards, ...(file.data.tokens ?? [])]) {
@@ -96,45 +94,98 @@ export async function buildFromMtgjson(
     }
   }
 
-  const { model, scryfallIds, missing } = buildModelFromMtgjson(picked.config, uuidToScryfall);
-  const found = new Map((await client.collection(scryfallIds)).map((c) => [c.id, normaliseCard(c)]));
-
-  const cards: CardRecord[] = [];
-  const remap = new Map<number, number>();
-  scryfallIds.forEach((id, i) => {
-    const card = found.get(id);
-    if (card) {
-      remap.set(i, cards.length);
-      cards.push(card);
-    }
+  const built = specs.flatMap((spec) => {
+    const picked = boosterConfig(setFile.data, spec.type);
+    return picked ? [{ spec, picked, ...buildModelFromMtgjson(picked.config, uuidToScryfall) }] : [];
   });
 
-  const set = await safeSet(client, entry.code);
-  const base = baseSnapshot(entry, set);
-  const contents = picked.config.boosters[0]?.contents ?? {};
-  const notes: string[] = [];
-  const unresolved = missing.length + (scryfallIds.length - cards.length);
-  if (unresolved > 0) notes.push(`${unresolved} sheet entries could not be matched to a Scryfall card and were left out.`);
+  const wanted = [...new Set(built.flatMap((b) => b.scryfallIds))].filter((id) => pool.indexOf(id) === undefined);
+  for (const raw of wanted.length ? await client.collection(wanted) : []) pool.add(normaliseCard(raw));
 
-  return {
-    ...base,
-    product: {
-      name: picked.config.name ?? `${picked.name[0].toUpperCase()}${picked.name.slice(1)} Booster`,
-      packsPerBox: entry.packsPerBox,
+  return built.map(({ spec, picked, model, scryfallIds, missing }) => {
+    const unresolved = missing.length + scryfallIds.filter((id) => pool.indexOf(id) === undefined).length;
+    const contents = picked.config.boosters[0]?.contents ?? {};
+    return {
+      type: spec.type,
+      name: BOOSTER_NAME[spec.type],
+      packsPerBox: spec.packsPerBox,
       cardsPerPack: Object.values(contents).reduce((s, n) => s + n, 0) || null,
-    },
-    model: remapModel(model, (i) => remap.get(i)),
-    modelSource: { kind: "mtgjson", boosterName: picked.name },
-    cards,
-    sources: [
-      { label: "MTGJSON — booster sheets and weights", url: `https://mtgjson.com/api/v5/${entry.code.toUpperCase()}.json` },
-      ...base.sources,
-    ],
+      boxPrice: estimateBox(spec),
+      model: remapModel(model, (i) => pool.indexOf(scryfallIds[i])),
+      modelSource: { kind: "mtgjson", boosterName: picked.name },
+      notes: unresolved > 0 ? [`${unresolved} sheet entries could not be matched to a Scryfall card and were left out.`] : [],
+    };
+  });
+}
+
+export interface BuildDeps {
+  client: ScryfallClient;
+  /** An MTGJSON set file by code, or null when there isn't one. Leave out to build from rules only. */
+  mtgjson?: (code: string) => Promise<MtgjsonSetFile | null>;
+}
+
+/**
+ * Build a snapshot with every booster in the catalog entry that MTGJSON or a hand-written
+ * collation can model. MTGJSON wins when it has the booster; rules fill the gaps, such as
+ * a set's Play Booster in the weeks before MTGJSON adds it.
+ */
+export async function buildSetSnapshot(entry: CatalogEntry, deps: BuildDeps): Promise<SetSnapshot> {
+  const file = deps.mtgjson ? await deps.mtgjson(entry.code) : null;
+  const viaMtgjson = file ? entry.boosters.filter((spec) => boosterConfig(file.data, spec.type)) : [];
+  const viaRules = entry.boosters.filter((spec) => spec.rules && !viaMtgjson.includes(spec));
+  const pool = new CardPool();
+  const boosters: BoosterProduct[] = [];
+  const sources: Source[] = [];
+
+  // Rules first, so their treatment labels win for cards both kinds of model share.
+  for (const spec of viaRules) {
+    boosters.push(await rulesBooster(entry, spec, deps.client, pool));
+    sources.push(...spec.rules!.sources);
+  }
+  if (file && viaMtgjson.length) {
+    const extraCodes = new Set(
+      viaMtgjson
+        .flatMap((spec) => boosterConfig(file.data, spec.type)!.config.sourceSetCodes ?? [])
+        .map((c) => c.toUpperCase())
+        .filter((c) => c !== entry.code.toUpperCase()),
+    );
+    const extras = (await Promise.all([...extraCodes].map((c) => deps.mtgjson!(c)))).filter((f): f is MtgjsonSetFile => f != null);
+    boosters.push(...(await mtgjsonBoosters(viaMtgjson, file, extras, deps.client, pool)));
+    sources.unshift({ label: "MTGJSON — booster sheets and weights", url: `https://mtgjson.com/api/v5/${entry.code.toUpperCase()}.json` });
+  }
+  if (!boosters.length) throw new Error("no MTGJSON booster data and no rules config");
+  boosters.sort(byBoosterOrder);
+
+  const notes: string[] = [];
+  const unmodelled = entry.boosters.filter((spec) => !boosters.some((b) => b.type === spec.type));
+  if (unmodelled.length) {
+    const names = unmodelled.map((spec) => `${BOOSTER_NAME[spec.type]}s`).join(" and ");
+    notes.push(`${names} aren't priced yet: there are no published print sheets for them to model.`);
+  }
+
+  const set = await safeSet(deps.client, entry.code);
+  return {
+    version: 2,
+    code: entry.code,
+    name: set?.name ?? entry.name,
+    releasedAt: set?.released_at ?? entry.releasedAt,
+    iconSvg: set?.icon_svg_uri ?? null,
+    boosters,
+    cards: pool.cards,
+    generatedAt: new Date().toISOString(),
+    sources: uniqueSources([...sources, ...BASE_SOURCES]),
     notes,
   };
 }
 
-function withFreshPrices(snapshot: Snapshot, fresh: Map<string, CardRecord>): Snapshot {
+function uniqueSources(sources: Source[]): Source[] {
+  const seen = new Set<string>();
+  return sources.filter((s) => !seen.has(s.url) && seen.add(s.url));
+}
+
+type Priced = { cards: CardRecord[]; generatedAt: string };
+
+function withFreshPrices<T extends Priced>(snapshot: T, fresh: Map<string, CardRecord>): T {
   return {
     ...snapshot,
     cards: snapshot.cards.map((c) => {
@@ -146,7 +197,7 @@ function withFreshPrices(snapshot: Snapshot, fresh: Map<string, CardRecord>): Sn
 }
 
 /** Pull fresh prices for every card in a snapshot. Cards Scryfall no longer returns keep their old price. */
-export async function refreshPrices(snapshot: Snapshot, client: ScryfallClient): Promise<Snapshot> {
+export async function refreshPrices<T extends Priced>(snapshot: T, client: ScryfallClient): Promise<T> {
   const fresh = new Map((await client.collection(snapshot.cards.map((c) => c.id))).map((c) => [c.id, normaliseCard(c)]));
   return withFreshPrices(snapshot, fresh);
 }
@@ -155,7 +206,7 @@ export async function refreshPrices(snapshot: Snapshot, client: ScryfallClient):
  * The same refresh using only GET searches. Browsers must preflight the JSON POST that
  * /cards/collection needs; plain GETs avoid that round trip and any CORS surprises.
  */
-export async function refreshPricesViaSearch(snapshot: Snapshot, client: ScryfallClient): Promise<Snapshot> {
+export async function refreshPricesViaSearch<T extends Priced>(snapshot: T, client: ScryfallClient): Promise<T> {
   const bySet = new Map<string, CardRecord[]>();
   for (const c of snapshot.cards) bySet.set(c.set, [...(bySet.get(c.set) ?? []), c]);
   const fresh = new Map<string, CardRecord>();
@@ -176,15 +227,24 @@ export function searchQueriesFor(set: string, cns: string[], chunk = 40): string
   return out;
 }
 
-export function summarise(snapshot: Snapshot): SetSummary {
+export function summarise(set: SetSnapshot): SetSummary {
+  return {
+    code: set.code,
+    name: set.name,
+    releasedAt: set.releasedAt,
+    iconSvg: set.iconSvg,
+    boosters: set.boosters.map((b) => summariseBooster(boosterView(set, b))),
+    params: { ...DEFAULT_PARAMS },
+  };
+}
+
+function summariseBooster(snapshot: Snapshot): BoosterSummary {
   const ev = computeEv(snapshot, DEFAULT_PARAMS);
   const top = mostValuable(snapshot);
   const price = snapshot.boxPrice.usd;
   return {
-    code: snapshot.code,
-    name: snapshot.name,
-    releasedAt: snapshot.releasedAt,
-    iconSvg: snapshot.iconSvg,
+    type: snapshot.booster,
+    name: snapshot.product.name,
     packsPerBox: snapshot.product.packsPerBox,
     boxPrice: snapshot.boxPrice,
     evBox: round2(ev.evBox),
@@ -201,7 +261,6 @@ export function summarise(snapshot: Snapshot): SetSummary {
         }
       : null,
     modelSource: snapshot.modelSource.kind,
-    params: { ...DEFAULT_PARAMS },
   };
 }
 

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { boosterView } from "../src/lib/boosters";
 import { computeEv } from "../src/lib/engine/ev";
-import { buildFromMtgjson, buildFromRules, summarise } from "../src/lib/data/build";
-import { buildModelFromMtgjson, sheetLabel, type MtgjsonSetFile } from "../src/lib/data/mtgjson";
+import { buildSetSnapshot, summarise } from "../src/lib/data/build";
+import { boosterConfig, buildModelFromMtgjson, sheetLabel, type MtgjsonBoosterConfig, type MtgjsonSetFile } from "../src/lib/data/mtgjson";
 import { buildModelFromRules, rulesQueries, type RulesConfig } from "../src/lib/data/rules";
 import { collectorNumber, createScryfallClient, normaliseCard, type ScryfallCard } from "../src/lib/data/scryfall";
-import { findGroup, findPlayBoxProduct } from "../src/lib/data/tcgcsv";
+import { findBoxProduct, findGroup } from "../src/lib/data/tcgcsv";
 import type { CatalogEntry } from "../src/sets/catalog";
 import { card } from "./helpers";
 
@@ -171,6 +172,15 @@ describe("MTGJSON", () => {
     ]);
     expect(model.sheets.foil.entries).toEqual([[1, 1, 1]]);
   });
+
+  it("finds each booster type, including older files' default draft booster", () => {
+    const config: MtgjsonBoosterConfig = { boosters: [], sheets: {} };
+    const set = { code: "THB", name: "Theros", cards: [], booster: { default: config, collector: config, arena: config } };
+    expect(boosterConfig(set, "draft")?.name).toBe("default");
+    expect(boosterConfig(set, "collector")?.name).toBe("collector");
+    expect(boosterConfig(set, "set")).toBeNull();
+    expect(boosterConfig(set, "play")).toBeNull();
+  });
 });
 
 describe("TCGCSV matching", () => {
@@ -187,15 +197,31 @@ describe("TCGCSV matching", () => {
     expect(g?.groupId).toBe(2);
   });
 
-  it("picks the display over cases, bundles and collector boxes", () => {
-    const p = findPlayBoxProduct([
+  it("picks each booster's display over cases, bundles and other boosters", () => {
+    const products = [
       { productId: 1, name: "Reality Fracture Play Booster Display Case" },
       { productId: 2, name: "Reality Fracture Collector Booster Display" },
       { productId: 3, name: "Reality Fracture Play Booster Pack" },
       { productId: 4, name: "Reality Fracture Play Booster Display" },
       { productId: 5, name: "Reality Fracture Bundle" },
-    ]);
-    expect(p?.productId).toBe(4);
+      { productId: 6, name: "Reality Fracture Collector Booster Display Case" },
+    ];
+    expect(findBoxProduct(products, "play")?.productId).toBe(4);
+    expect(findBoxProduct(products, "collector")?.productId).toBe(2);
+    expect(findBoxProduct(products, "set")).toBeNull();
+  });
+
+  it("prefers the plain display to special editions and variants", () => {
+    const products = [
+      { productId: 1, name: "The Lord of the Rings: Tales of Middle-earth - Special Edition Collector Booster Display" },
+      { productId: 2, name: "The Lord of the Rings: Tales of Middle-earth - Collector Booster Display" },
+      { productId: 3, name: "The Lord of the Rings: Tales of Middle-earth - Set Booster Display" },
+      { productId: 4, name: "The Lord of the Rings: Tales of Middle-earth - Draft Booster Box" },
+      { productId: 5, name: "The Lord of the Rings: Tales of Middle-earth - Draft Booster Display (Minimal Packaging)" },
+    ];
+    expect(findBoxProduct(products, "collector")?.productId).toBe(2);
+    expect(findBoxProduct(products, "set")?.productId).toBe(3);
+    expect(findBoxProduct(products, "draft")?.productId).toBe(4);
   });
 });
 
@@ -223,7 +249,23 @@ function fakeScryfall(cards: ScryfallCard[]) {
   return { client: createScryfallClient({ fetch: fetchImpl, delayMs: 0 }), calls };
 }
 
-const ENTRY: CatalogEntry = { code: "tst", name: "Test", releasedAt: "2026-01-01", packsPerBox: 30, boxEstimate: 100, rules: RULES };
+const ENTRY: CatalogEntry = {
+  code: "tst",
+  name: "Test",
+  releasedAt: "2026-01-01",
+  boosters: [{ type: "play", packsPerBox: 30, estimate: 100, rules: RULES }],
+};
+
+function mtgjsonFile(scry: ScryfallCard[], booster: Record<string, MtgjsonBoosterConfig>): MtgjsonSetFile {
+  return {
+    data: {
+      code: "TST",
+      name: "Test",
+      cards: scry.map((c) => ({ uuid: `u-${c.id}`, name: c.name, number: c.collector_number, setCode: "TST", identifiers: { scryfallId: c.id } })),
+      booster,
+    },
+  };
+}
 
 describe("snapshot builders", () => {
   const scry = [
@@ -234,15 +276,38 @@ describe("snapshot builders", () => {
     sf({ id: "b1", collector_number: "300", rarity: "mythic", border_color: "borderless", prices: { usd: "35", usd_foil: "70" } }),
     sf({ id: "x1", collector_number: "301", rarity: "rare", frame_effects: ["extendedart"] }),
   ];
+  const play: MtgjsonBoosterConfig = {
+    name: "Play Booster",
+    boosters: [
+      { contents: { common: 2, rareMythic: 1 }, weight: 7 },
+      { contents: { common: 2, borderless: 1 }, weight: 1 },
+    ],
+    sheets: {
+      common: { cards: { "u-c1": 1, "u-c2": 1 }, foil: false },
+      rareMythic: { cards: { "u-r1": 2, "u-m1": 1 }, foil: false },
+      borderless: { cards: { "u-b1": 1 }, foil: true },
+    },
+  };
+  const collector: MtgjsonBoosterConfig = {
+    name: "Collector Booster",
+    boosters: [{ contents: { foilCommon: 1, extended: 1 }, weight: 1 }],
+    sheets: {
+      foilCommon: { cards: { "u-c1": 1 }, foil: true },
+      extended: { cards: { "u-x1": 1 }, foil: false },
+    },
+  };
 
   it("builds from rules and drops cards no slot can produce", async () => {
     const { client } = fakeScryfall(scry);
-    const snap = await buildFromRules(ENTRY, client);
+    const snap = await buildSetSnapshot(ENTRY, { client });
+    expect(snap.version).toBe(2);
     expect(snap.name).toBe("Test Set");
     expect(snap.cards.map((c) => c.id).sort()).toEqual(["b1", "c1", "c2", "m1", "r1"]);
-    expect(snap.product.cardsPerPack).toBe(4);
-    expect(snap.notes.some((n) => n.includes("Special Guest"))).toBe(true);
-    const summary = summarise(snap);
+    expect(snap.boosters.map((b) => b.type)).toEqual(["play"]);
+    expect(snap.boosters[0].cardsPerPack).toBe(4);
+    expect(snap.boosters[0].boxPrice).toEqual({ usd: 100, source: "estimate" });
+    expect(snap.boosters[0].notes.some((n) => n.includes("Special Guest"))).toBe(true);
+    const [summary] = summarise(snap).boosters;
     expect(summary.evBox).toBeGreaterThan(0);
     expect(summary.ratio).toBeCloseTo(100 / summary.evBox, 2);
     expect(summary.topCard?.name).toBe("b1");
@@ -250,33 +315,61 @@ describe("snapshot builders", () => {
 
   it("builds from MTGJSON sheets", async () => {
     const { client } = fakeScryfall(scry);
-    const file: MtgjsonSetFile = {
-      data: {
-        code: "TST",
-        name: "Test",
-        cards: scry.map((c) => ({ uuid: `u-${c.id}`, name: c.name, number: c.collector_number, setCode: "TST", identifiers: { scryfallId: c.id } })),
-        booster: {
-          play: {
-            name: "Play Booster",
-            boosters: [
-              { contents: { common: 2, rareMythic: 1 }, weight: 7 },
-              { contents: { common: 2, borderless: 1 }, weight: 1 },
-            ],
-            sheets: {
-              common: { cards: { "u-c1": 1, "u-c2": 1 }, foil: false },
-              rareMythic: { cards: { "u-r1": 2, "u-m1": 1 }, foil: false },
-              borderless: { cards: { "u-b1": 1 }, foil: true },
-            },
-          },
-        },
-      },
-    };
-    const snap = (await buildFromMtgjson(ENTRY, file, [], client))!;
-    expect(snap.modelSource.kind).toBe("mtgjson");
-    expect(snap.product.cardsPerPack).toBe(3);
-    const ev = computeEv(snap, { floor: 0, fees: 0 });
+    const file = mtgjsonFile(scry, { play });
+    const snap = await buildSetSnapshot({ ...ENTRY, boosters: [{ type: "play", packsPerBox: 30 }] }, { client, mtgjson: async () => file });
+    const booster = snap.boosters[0];
+    expect(booster.modelSource).toEqual({ kind: "mtgjson", boosterName: "play" });
+    expect(booster.cardsPerPack).toBe(3);
+    const ev = computeEv(boosterView(snap, booster), { floor: 0, fees: 0 });
     const perPack = 2 * 0.2 + (7 / 8) * ((2 / 3) * 4 + (1 / 3) * 22) + (1 / 8) * 70;
     expect(ev.evPack).toBeCloseTo(perPack);
+  });
+
+  it("gives every booster one shared card pool, looked up once", async () => {
+    const { client, calls } = fakeScryfall(scry);
+    const file = mtgjsonFile(scry, { play, collector });
+    const entry: CatalogEntry = {
+      ...ENTRY,
+      boosters: [
+        { type: "play", packsPerBox: 30 },
+        { type: "collector", packsPerBox: 12 },
+      ],
+    };
+    const snap = await buildSetSnapshot(entry, { client, mtgjson: async () => file });
+    expect(snap.boosters.map((b) => [b.type, b.name, b.packsPerBox])).toEqual([
+      ["play", "Play Booster", 30],
+      ["collector", "Collector Booster", 12],
+    ]);
+    expect(new Set(snap.cards.map((c) => c.id)).size).toBe(snap.cards.length);
+    const c1 = snap.cards.findIndex((c) => c.id === "c1");
+    expect(snap.boosters[0].model.sheets.common.entries[0][0]).toBe(c1);
+    expect(snap.boosters[1].model.sheets.foilCommon.entries).toEqual([[c1, 1, 1]]);
+    expect(calls.filter((u) => u.includes("/cards/collection"))).toHaveLength(1);
+
+    const collectorEv = computeEv(boosterView(snap, snap.boosters[1]), { floor: 0, fees: 0 });
+    expect(collectorEv.evPack).toBeCloseTo(0.25 + 0.1);
+    expect(collectorEv.evBox).toBeCloseTo(12 * 0.35);
+    expect(summarise(snap).boosters.map((b) => b.type)).toEqual(["play", "collector"]);
+  });
+
+  it("fills in a booster MTGJSON lacks from rules, and notes one nobody models", async () => {
+    const { client } = fakeScryfall(scry);
+    const file = mtgjsonFile(scry, { collector });
+    const entry: CatalogEntry = {
+      ...ENTRY,
+      boosters: [
+        { type: "play", packsPerBox: 30, rules: RULES },
+        { type: "set", packsPerBox: 30 },
+        { type: "collector", packsPerBox: 12 },
+      ],
+    };
+    const snap = await buildSetSnapshot(entry, { client, mtgjson: async () => file });
+    expect(snap.boosters.map((b) => [b.type, b.modelSource.kind])).toEqual([
+      ["play", "rules"],
+      ["collector", "mtgjson"],
+    ]);
+    expect(snap.cards.filter((c) => c.id === "c1")).toHaveLength(1);
+    expect(snap.notes.some((n) => n.startsWith("Set Boosters aren't priced yet"))).toBe(true);
   });
 });
 
@@ -311,7 +404,7 @@ describe("price refresh", () => {
       sf({ id: "b1", collector_number: "300", rarity: "mythic", border_color: "borderless", prices: { usd: "35" } }),
     ];
     const { client, calls } = fakeScryfall(scry);
-    const snap = await buildFromRules(ENTRY, client);
+    const snap = await buildSetSnapshot(ENTRY, { client });
     const before = snap.cards.find((c) => c.id === "r1")!.prices.usd;
     scry[1].prices = { usd: "9.5" };
     calls.length = 0;

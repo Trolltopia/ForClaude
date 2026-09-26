@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { buildFromRules, refreshPricesViaSearch } from "@/lib/data/build";
+import { upgradeSnapshot } from "@/lib/boosters";
+import { buildSetSnapshot, refreshPricesViaSearch } from "@/lib/data/build";
 import { createScryfallClient } from "@/lib/data/scryfall";
-import type { Snapshot } from "@/lib/types";
+import type { SetSnapshot } from "@/lib/types";
 import { catalogEntry } from "@/sets/catalog";
 import { getJson, type Status } from "./useSnapshotIndex";
 
@@ -10,7 +11,8 @@ const scryfall = createScryfallClient({ delayMs: 250 });
 
 export interface SnapshotState {
   status: Status;
-  snapshot: Snapshot | null;
+  /** The set with every booster it has; pick one with boosterView. */
+  snapshot: SetSnapshot | null;
   /** True when the snapshot was built in this browser rather than by the daily job. */
   live: boolean;
   refreshing: boolean;
@@ -18,22 +20,22 @@ export interface SnapshotState {
   refresh: () => Promise<void>;
 }
 
-const cache = new Map<string, { snapshot: Snapshot; live: boolean }>();
+const cache = new Map<string, { snapshot: SetSnapshot; live: boolean }>();
 
-async function loadSnapshot(code: string): Promise<{ snapshot: Snapshot; live: boolean }> {
+async function loadSnapshot(code: string): Promise<{ snapshot: SetSnapshot; live: boolean }> {
   const hit = cache.get(code);
   if (hit) return hit;
-  const stored = await getJson<Snapshot>(`data/${code}.json`).catch(() => null);
+  const stored = await getJson<Parameters<typeof upgradeSnapshot>[0]>(`data/${code}.json`).catch(() => null);
   if (stored) {
-    const out = { snapshot: stored, live: false };
+    const out = { snapshot: upgradeSnapshot(stored), live: false };
     cache.set(code, out);
     return out;
   }
   // No snapshot from the daily job (e.g. running locally before `npm run data`):
   // build one from Scryfall directly when we have a collation for the set.
   const entry = catalogEntry(code);
-  if (!entry?.rules) throw new Error("No price snapshot for this set yet.");
-  const out = { snapshot: await buildFromRules(entry, scryfall), live: true };
+  if (!entry?.boosters.some((b) => b.rules)) throw new Error("No price snapshot for this set yet.");
+  const out = { snapshot: await buildSetSnapshot(entry, { client: scryfall }), live: true };
   cache.set(code, out);
   return out;
 }

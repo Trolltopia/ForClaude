@@ -10,7 +10,7 @@ export function Footer() {
         <div>
           <Wordmark className="text-[44px]" />
           <p className="mt-5 max-w-sm font-serif text-[15px] leading-relaxed text-[#bdbdbd]">
-            An expected-value calculator for Magic: The Gathering Play Boosters. Card prices are TCGplayer market prices
+            An expected-value calculator for Magic: The Gathering booster boxes. Card prices are TCGplayer market prices
             by way of Scryfall; box prices come from TCGplayer. Nothing here is financial advice — it's cardboard.
           </p>
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
-import { Link } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Section } from "@/components/Section";
+import { BoosterTabs } from "@/components/set/BoosterTabs";
 import { CardTable } from "@/components/set/CardTable";
 import { ChaseGrid } from "@/components/set/ChaseGrid";
 import { Controls } from "@/components/set/Controls";
@@ -14,31 +15,64 @@ import { Masthead } from "@/components/site/Masthead";
 import { useSnapshot } from "@/hooks/useSnapshot";
 import { useQueryNumbers } from "@/hooks/useQueryState";
 import { SIM_BOXES, useSimulation } from "@/hooks/useSimulation";
+import { boosterView } from "@/lib/boosters";
 import { computeEv, DEFAULT_FEES, type EvParams } from "@/lib/engine/ev";
 import { count, isReleased, money, percent } from "@/lib/format";
+import type { BoosterType } from "@/lib/types";
 import { catalogEntry } from "@/sets/catalog";
 
 const QUERY_KEYS = ["box", "floor", "fees"] as const;
 
-export function SetPage({ code }: { code: string }) {
+/** /sets/fdn for the main booster, /sets/fdn/collector for the others; floor and fees carry over, a box price doesn't. */
+function boosterHref(code: string, type: BoosterType, main: BoosterType | undefined, search: string, box: number | null = null) {
+  const params = new URLSearchParams(search);
+  params.delete("box");
+  if (box != null) params.set("box", String(box));
+  const qs = params.toString();
+  return `/sets/${code}${type === main ? "" : `/${type}`}${qs ? `?${qs}` : ""}`;
+}
+
+export function SetPage({ code, booster: requested }: { code: string; booster?: string }) {
   const entry = catalogEntry(code);
-  const { status, snapshot, live, refreshing, error, refresh } = useSnapshot(code);
+  const { status, snapshot: set, live, refreshing, error, refresh } = useSnapshot(code);
   const [query, setQuery] = useQueryNumbers(QUERY_KEYS);
+  const [, navigate] = useLocation();
+  const search = useSearch();
 
   const defaultFees = Math.round(DEFAULT_FEES * 100);
   const floor = Math.max(0, Math.min(1000, query.floor ?? 0));
   const fees = Math.max(0, Math.min(30, query.fees ?? defaultFees));
   const params = useMemo<EvParams>(() => ({ floor, fees: fees / 100 }), [floor, fees]);
-  const marketPrice = snapshot?.boxPrice ?? { usd: entry?.boxEstimate ?? null, source: "estimate" as const };
+
+  const main = set?.boosters[0]?.type;
+  const current = set?.boosters.find((b) => b.type === requested) ?? set?.boosters[0] ?? null;
+  const snapshot = useMemo(() => (set && current ? boosterView(set, current) : null), [set, current]);
+  const marketPrice = snapshot?.boxPrice ?? { usd: null, source: "estimate" as const };
   const boxPrice = query.box ?? marketPrice.usd;
 
   const ev = useMemo(() => (snapshot ? computeEv(snapshot, params) : null), [snapshot, params]);
   const { summary: sim, running } = useSimulation(snapshot, params, boxPrice);
 
+  // Every booster of the set at the same settings, for the tabs and the sealed table.
+  const boosters = useMemo(
+    () =>
+      set?.boosters.map((b) => {
+        const e = b === current && ev ? ev : computeEv(boosterView(set, b), params);
+        return { booster: b, evBox: e.evBox, evPack: e.evPack };
+      }) ?? [],
+    [set, current, ev, params],
+  );
+
+  // A booster this set doesn't have (an old link, a typo): show the main one at its own address.
   useEffect(() => {
-    const name = snapshot?.name ?? entry?.name;
-    document.title = name ? `${name} booster box value — Crack or Keep` : "Crack or Keep";
-  }, [snapshot?.name, entry?.name]);
+    if (set && requested && current?.type !== requested) navigate(boosterHref(code, current!.type, main, search, query.box), { replace: true });
+  }, [set, requested, current, main, code, search, query.box, navigate]);
+
+  useEffect(() => {
+    const name = set?.name ?? entry?.name;
+    const product = snapshot && set && set.boosters.length > 1 ? ` ${snapshot.product.name}` : " booster";
+    document.title = name ? `${name}${product} box value — Crack or Keep` : "Crack or Keep";
+  }, [set, snapshot, entry?.name]);
 
   if (!entry && status === "error") return <Missing code={code} />;
 
@@ -59,7 +93,20 @@ export function SetPage({ code }: { code: string }) {
             )}
             <SetHeader snapshot={snapshot} boxPrice={boxPrice} evBox={ev.evBox} params={params} />
 
+            <BoosterTabs
+              current={snapshot.booster}
+              provisional={!isReleased(snapshot.releasedAt)}
+              tabs={boosters.map(({ booster: b, evBox }) => ({
+                type: b.type,
+                name: b.name,
+                packsPerBox: b.packsPerBox,
+                boxPrice: b === current ? boxPrice : b.boxPrice.usd,
+                evBox,
+                href: boosterHref(code, b.type, main, search),
+              }))}
+            />
             <Controls
+              productName={snapshot.product.name}
               packsPerBox={snapshot.product.packsPerBox}
               boxPrice={boxPrice}
               marketPrice={marketPrice}
@@ -109,19 +156,27 @@ export function SetPage({ code }: { code: string }) {
               title="Sealed product"
               dek={
                 <>
-                  What the set sells for unopened, from single packs to cases. Anything made of Play Boosters is priced per booster
-                  against the <strong className="font-semibold text-ink">{money(ev.evPack)}</strong> an average pack is worth at your
-                  settings.
+                  What the set sells for unopened, from single packs to cases. Anything with a set number of boosters inside is priced
+                  per booster, against what an average booster of that kind is worth at your settings:{" "}
+                  <strong className="font-semibold text-ink">{money(ev.evPack)}</strong> for a {snapshot.product.name}.
                 </>
               }
             >
               {snapshot.sealed?.length ? (
                 <SealedSection
                   products={snapshot.sealed}
-                  evPack={ev.evPack}
-                  packsPerBox={snapshot.product.packsPerBox}
+                  boosters={boosters.map(({ booster: b, evPack }) => ({
+                    type: b.type,
+                    packsPerBox: b.packsPerBox,
+                    evPack,
+                    boxUrl: b.boxPrice.productUrl ?? null,
+                  }))}
+                  current={snapshot.booster}
                   boxPrice={boxPrice}
-                  onUseAsBox={(v) => setQuery({ box: v })}
+                  onUseAsBox={(type, price) => {
+                    if (type === snapshot.booster) setQuery({ box: price });
+                    else navigate(boosterHref(code, type, main, search, price));
+                  }}
                 />
               ) : (
                 <SealedUnavailable />

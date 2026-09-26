@@ -1,38 +1,39 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { RatioMeter } from "@/components/charts/Bars";
 import { SetIcon } from "@/components/SetIcon";
 import { Masthead } from "@/components/site/Masthead";
 import { Button } from "@/components/ui/button";
+import { Segmented } from "@/components/ui/segmented";
 import { useSnapshotIndex } from "@/hooks/useSnapshotIndex";
+import { BOOSTER_SHORT } from "@/lib/boosters";
 import { date, isReleased, money, monthYear, percent, ratio } from "@/lib/format";
-import type { SetSummary } from "@/lib/types";
+import type { BoosterSummary, BoosterType, SetSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { settingsPhrase, VERDICT_TITLE, verdictFor } from "@/lib/verdict";
-import { CATALOG } from "@/sets/catalog";
+import { CATALOG, type CatalogEntry } from "@/sets/catalog";
 
-function headline(s: SetSummary): string {
-  const v = verdictFor(s.ratio, s.releasedAt);
+function headline(s: SetSummary, b: BoosterSummary): string {
+  const v = verdictFor(b.ratio, s.releasedAt);
   if (v === "early") return `${s.name}: too early to call`;
   if (v === "crack") return `${s.name} boxes are worth opening`;
   if (v === "keep") return `Keep ${s.name} sealed`;
   return `${s.name} is a coin flip`;
 }
 
-function LeadStory({ s }: { s: SetSummary }) {
+function LeadStory({ s, b }: { s: SetSummary; b: BoosterSummary }) {
   const released = isReleased(s.releasedAt);
-  const price = s.boxPrice.usd;
+  const price = b.boxPrice.usd;
   return (
     <article className="grid gap-10 border-b-2 border-rule py-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)] lg:gap-16">
       <div className="flex flex-col">
         <p className="kicker text-body">
-          {released ? "Newest set" : `Out ${date(s.releasedAt)}`} · Play Booster display
+          {released ? "Newest set" : `Out ${date(s.releasedAt)}`} · {b.name} display
         </p>
-        <h1 className="display mt-4 text-[clamp(46px,7vw,92px)] leading-[0.92]">{headline(s)}</h1>
+        <h1 className="display mt-4 text-[clamp(46px,7vw,92px)] leading-[0.92]">{headline(s, b)}</h1>
         <p className="mt-6 max-w-2xl font-serif text-[19px] leading-[1.55] text-ink-soft sm:text-[21px]">
-          A {s.packsPerBox}-pack box costs about {money(price)}. On this morning&rsquo;s prices the cards inside average{" "}
-          {money(s.evBox)} {settingsPhrase(s.params ?? { floor: 0, fees: 0 })}, so every dollar spent buys{" "}
-          {money(price ? s.evBox / price : null)} of cards.
+          A {b.packsPerBox}-pack box costs about {money(price)}. On this morning&rsquo;s prices the cards inside average{" "}
+          {money(b.evBox)} {settingsPhrase(s.params)}, so every dollar spent buys {money(price ? b.evBox / price : null)} of cards.
           {!released &&
             " The set isn’t out yet, and preorder singles prices rest on a handful of early sales. They nearly always fall after launch, so treat this as a ceiling."}
         </p>
@@ -40,8 +41,8 @@ function LeadStory({ s }: { s: SetSummary }) {
         <dl className="mt-10 grid grid-cols-3 border-t border-ink">
           {[
             ["Box price", money(price)],
-            ["Expected value", money(s.evBox)],
-            ["Price ÷ value", ratio(s.ratio)],
+            ["Expected value", money(b.evBox)],
+            ["Price ÷ value", ratio(b.ratio)],
           ].map(([label, value]) => (
             <div key={label} className="border-r border-hairline pt-3 pr-3 last:border-r-0 [&:not(:first-child)]:pl-4">
               <dt className="text-[12px] font-bold sm:text-[13px]">{label}</dt>
@@ -57,22 +58,22 @@ function LeadStory({ s }: { s: SetSummary }) {
         </div>
       </div>
 
-      {s.topCard && (
+      {b.topCard && (
         <figure className="self-end">
-          {s.topCard.image && (
+          {b.topCard.image && (
             <Link href={`/sets/${s.code}#chase`} className="group relative block overflow-hidden rounded-[4.6%/3.3%] bg-card-back">
-              <img src={s.topCard.image} alt={s.topCard.name} className="aspect-[488/680] w-full object-cover" />
-              {s.topCard.foil && <div className="foil-sheen" aria-hidden="true" />}
+              <img src={b.topCard.image} alt={b.topCard.name} className="aspect-[488/680] w-full object-cover" />
+              {b.topCard.foil && <div className="foil-sheen" aria-hidden="true" />}
             </Link>
           )}
           <figcaption className="mt-4 border-t border-ink pt-3">
             <span className="kicker text-body">The chase</span>
-            <span className="mt-1 block font-sans text-[17px] font-bold">{s.topCard.name}</span>
+            <span className="mt-1 block font-sans text-[17px] font-bold">{b.topCard.name}</span>
             <span className="text-[14px] text-body">
-              {[s.topCard.treatmentLabel !== "Regular" ? s.topCard.treatmentLabel : null, s.topCard.foil ? "foil" : null]
+              {[b.topCard.treatmentLabel !== "Regular" ? b.topCard.treatmentLabel : null, b.topCard.foil ? "foil" : null]
                 .filter(Boolean)
                 .join(", ") || "Regular"}{" "}
-              · {money(s.topCard.price)}
+              · {money(b.topCard.price)}
             </span>
           </figcaption>
         </figure>
@@ -83,21 +84,53 @@ function LeadStory({ s }: { s: SetSummary }) {
 
 type SortKey = "release" | "ratio" | "ev" | "price";
 
-function Board({ sets }: { sets: SetSummary[] }) {
+/** Which box the board compares: each set's main booster, or its Set or Collector Boosters. */
+type BoardView = "main" | "set" | "collector";
+
+const VIEWS: { value: BoardView; label: string; note: string }[] = [
+  {
+    value: "main",
+    label: "Play / Draft",
+    note: "Each set's main booster box: Play Boosters from Murders at Karlov Manor (2024) on, Draft Boosters before that.",
+  },
+  { value: "set", label: "Set", note: "Set Boosters, sold from Zendikar Rising (2020) to The Lost Caverns of Ixalan (2023), 30 to a box." },
+  { value: "collector", label: "Collector", note: "Collector Boosters, 12 to a box: fewer, pricier packs built around foils and alternate art." },
+];
+
+interface Row {
+  entry: CatalogEntry;
+  s: SetSummary | null;
+  b: BoosterSummary | null;
+  type: BoosterType;
+  href: string;
+}
+
+/** The board's rows for a view: sets that sold that booster, newest first. */
+function boardRows(sets: SetSummary[], view: BoardView): Row[] {
+  const byCode = new Map(sets.map((s) => [s.code, s]));
+  return CATALOG.flatMap((entry) => {
+    const main = entry.boosters[0].type;
+    const type = view === "main" ? main : view;
+    if (!entry.boosters.some((b) => b.type === type)) return [];
+    const s = byCode.get(entry.code) ?? null;
+    const b = s?.boosters.find((x) => x.type === type) ?? null;
+    return [{ entry, s, b, type, href: `/sets/${entry.code}${type === main ? "" : `/${type}`}` }];
+  });
+}
+
+function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
   const [sort, setSort] = useState<SortKey>("release");
   const [, navigate] = useLocation();
   const rows = useMemo(() => {
-    const byCode = new Map(sets.map((s) => [s.code, s]));
-    const all = CATALOG.map((c) => ({ entry: c, s: byCode.get(c.code) ?? null }));
-    const key = (r: (typeof all)[number]) => {
-      if (!r.s) return -Infinity;
-      if (sort === "ratio") return -(r.s.ratio ?? Infinity);
-      if (sort === "ev") return r.s.evBox;
-      if (sort === "price") return r.s.boxPrice.usd ?? 0;
+    const key = (r: Row) => {
+      if (!r.b) return -Infinity;
+      if (sort === "ratio") return -(r.b.ratio ?? Infinity);
+      if (sort === "ev") return r.b.evBox;
+      if (sort === "price") return r.b.boxPrice.usd ?? 0;
       return 0;
     };
     return sort === "release" ? all : [...all].sort((a, b) => key(b) - key(a));
-  }, [sets, sort]);
+  }, [all, sort]);
 
   const th = (k: SortKey, label: string, cls = "") => (
     <th scope="col" className={cn("py-2 font-semibold", cls)} aria-sort={sort === k ? "descending" : "none"}>
@@ -123,16 +156,12 @@ function Board({ sets }: { sets: SetSummary[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ entry, s }) => {
-            const v = verdictFor(s?.ratio ?? null, s?.releasedAt);
+          {rows.map(({ entry, s, b, type, href }) => {
+            const v = verdictFor(b?.ratio ?? null, s?.releasedAt);
             return (
-              <tr
-                key={entry.code}
-                className="group cursor-pointer border-b border-hairline hover:bg-canvas-soft"
-                onClick={() => navigate(`/sets/${entry.code}`)}
-              >
+              <tr key={entry.code} className="group cursor-pointer border-b border-hairline hover:bg-canvas-soft" onClick={() => navigate(href)}>
                 <th scope="row" className="py-3.5 pr-4 font-normal">
-                  <Link href={`/sets/${entry.code}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                  <Link href={href} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                     <span className="flex w-6 justify-center">
                       <SetIcon src={s?.iconSvg ?? null} className="h-5 w-auto max-w-6" />
                     </span>
@@ -144,21 +173,32 @@ function Board({ sets }: { sets: SetSummary[] }) {
                 </th>
                 <td className="num hidden py-3.5 pr-4 text-[14px] text-body lg:table-cell">{monthYear(s?.releasedAt ?? entry.releasedAt)}</td>
                 <td className="num hidden py-3.5 pr-4 text-right text-[15px] md:table-cell">
-                  {money(s?.boxPrice.usd)}
-                  {s?.boxPrice.source === "estimate" && <span className="ml-0.5 text-muted" title="Estimated street price">*</span>}
+                  {money(b?.boxPrice.usd)}
+                  {b?.boxPrice.source === "estimate" && b.boxPrice.usd != null && (
+                    <span className="ml-0.5 text-muted" title="Estimated street price">
+                      *
+                    </span>
+                  )}
+                  {view === "main" && b && (
+                    <span className="block font-sans text-[11.5px] text-muted">
+                      {b.packsPerBox} × {BOOSTER_SHORT[type]}
+                    </span>
+                  )}
                 </td>
-                <td className="num hidden py-3.5 pr-6 text-right text-[15px] font-semibold md:table-cell">{s ? money(s.evBox) : "—"}</td>
+                <td className="num hidden py-3.5 pr-6 text-right text-[15px] font-semibold md:table-cell">{b ? money(b.evBox) : "—"}</td>
                 <td className="py-3.5 pr-4 md:pr-6">
                   <div className="flex items-center gap-3">
-                    <span className="num w-12 shrink-0 text-[15px] font-semibold">{ratio(s?.ratio)}</span>
-                    <RatioMeter value={s?.ratio ?? null} />
+                    <span className="num w-12 shrink-0 text-[15px] font-semibold">{ratio(b?.ratio)}</span>
+                    <RatioMeter value={b?.ratio ?? null} />
                   </div>
                 </td>
-                <td className="hidden py-3.5 pr-4 text-[14px] font-semibold sm:table-cell">{v ? VERDICT_TITLE[v] : <span className="font-normal text-muted">No data</span>}</td>
+                <td className="hidden py-3.5 pr-4 text-[14px] font-semibold sm:table-cell">
+                  {v ? VERDICT_TITLE[v] : <span className="font-normal text-muted">{b ? "No box price" : "No data"}</span>}
+                </td>
                 <td className="hidden max-w-56 py-3.5 text-[14px] lg:table-cell">
-                  {s?.topCard ? (
+                  {b?.topCard ? (
                     <span className="block truncate">
-                      {s.topCard.name} <span className="num text-body">{money(s.topCard.price)}</span>
+                      {b.topCard.name} <span className="num text-body">{money(b.topCard.price)}</span>
                     </span>
                   ) : (
                     <span className="text-muted">—</span>
@@ -199,23 +239,33 @@ function HowToRead() {
   );
 }
 
+function isView(v: string | null): v is BoardView {
+  return VIEWS.some((x) => x.value === v);
+}
+
 export function HomePage() {
   const { status, index } = useSnapshotIndex();
+  const [, navigate] = useLocation();
+  const requested = new URLSearchParams(useSearch()).get("booster");
+  const view: BoardView = isView(requested) ? requested : "main";
   useEffect(() => {
     document.title = "Crack or Keep — What a Magic booster box is worth once you open it";
   }, []);
 
-  const lead = index?.sets.find((s) => s.evBox > 0) ?? null;
+  const sets = index?.sets ?? [];
+  const lead = sets.find((s) => (s.boosters[0]?.evBox ?? 0) > 0) ?? null;
+  const rows = useMemo(() => boardRows(sets, view), [sets, view]);
   // Preorder prices would win this every time; only count sets that are out.
-  const priced = index?.sets.filter((s) => s.ratio != null && isReleased(s.releasedAt)) ?? [];
-  const best = [...priced].sort((a, b) => (a.ratio ?? 9) - (b.ratio ?? 9))[0];
+  const best = rows
+    .filter((r): r is Row & { s: SetSummary; b: BoosterSummary & { ratio: number } } => r.b?.ratio != null && isReleased(r.s!.releasedAt))
+    .sort((a, b) => a.b.ratio - b.b.ratio)[0];
 
   return (
     <>
       <Masthead />
       <main className="mx-auto max-w-page px-4 sm:px-6">
         {lead ? (
-          <LeadStory s={lead} />
+          <LeadStory s={lead} b={lead.boosters[0]} />
         ) : (
           status === "ready" && (
             <div className="border-b-2 border-rule py-12">
@@ -236,21 +286,33 @@ export function HomePage() {
         )}
 
         <section className="mt-14" aria-labelledby="board-title">
-          <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-rule pb-3">
+          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 border-b-2 border-rule pb-3">
             <div>
               <p className="kicker text-body">The board</p>
               <h2 id="board-title" className="display mt-1 text-[40px] leading-none sm:text-[52px]">
-                Every Play Booster set, priced
+                Every booster box, priced
               </h2>
             </div>
+            <div className="flex items-center gap-3">
+              <span className="kicker text-body">Booster</span>
+              <Segmented
+                label="Which booster box to compare"
+                value={view}
+                onChange={(v) => navigate(v === "main" ? "/" : `/?booster=${v}`, { replace: true })}
+                options={VIEWS.map(({ value, label }) => ({ value, label }))}
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-between gap-x-10 gap-y-2 pt-3 pb-1 text-[14px] text-body">
+            <p className="max-w-xl">{VIEWS.find((v) => v.value === view)!.note}</p>
             {best && (
-              <p className="max-w-sm text-[14px] text-body">
-                Best value right now: <strong className="text-ink">{best.name}</strong>, at {ratio(best.ratio)} — {percent(1 / (best.ratio ?? 1))} of the box
-                price back in cards.
+              <p className="max-w-sm">
+                Best value right now: <strong className="text-ink">{best.s.name}</strong>, at {ratio(best.b.ratio)} —{" "}
+                {percent(1 / best.b.ratio)} of the box price back in cards.
               </p>
             )}
           </div>
-          <Board sets={index?.sets ?? []} />
+          <Board rows={rows} view={view} />
           <p className="mt-3 text-[12px] text-body">
             Expected value is after 8% selling fees per card; open a set to change that or to ignore bulk. Click a column heading to
             sort. * Estimated street price: TCGplayer had no market price for the box.

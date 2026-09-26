@@ -1,4 +1,4 @@
-import type { BoosterModel, Sheet, SheetEntry } from "../types";
+import type { BoosterModel, BoosterType, Sheet, SheetEntry } from "../types";
 
 // MTGJSON v5 booster shapes. See https://mtgjson.com/data-models/booster/
 export interface MtgjsonBoosterConfig {
@@ -40,12 +40,17 @@ export interface MtgjsonSetFile {
   };
 }
 
-/** Booster types to try, most relevant first. Play Boosters replaced Draft/Set boosters in 2024. */
-export const BOOSTER_PREFERENCE = ["play", "draft", "default"];
+/** MTGJSON's booster keys for each booster we price. Older set files call the draft booster "default". */
+export const MTGJSON_BOOSTER_KEYS: Record<BoosterType, string[]> = {
+  play: ["play"],
+  draft: ["draft", "default"],
+  set: ["set"],
+  collector: ["collector"],
+};
 
-export function pickBooster(set: MtgjsonSetFile["data"]): { name: string; config: MtgjsonBoosterConfig } | null {
+export function boosterConfig(set: MtgjsonSetFile["data"], type: BoosterType): { name: string; config: MtgjsonBoosterConfig } | null {
   const boosters = set.booster ?? {};
-  for (const name of BOOSTER_PREFERENCE) {
+  for (const name of MTGJSON_BOOSTER_KEYS[type]) {
     if (boosters[name]) return { name, config: boosters[name] };
   }
   return null;

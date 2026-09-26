@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { InfoTip } from "@/components/ui/tooltip";
+import { BOOSTER_NAME, boosterOfKind } from "@/lib/boosters";
 import { money, ratio } from "@/lib/format";
-import type { SealedKind, SealedProduct } from "@/lib/types";
+import type { BoosterType, SealedKind, SealedProduct } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function Thumb({ src, alt }: { src: string | null; alt: string }) {
@@ -19,47 +20,60 @@ function Thumb({ src, alt }: { src: string | null; alt: string }) {
   );
 }
 
-/**
- * Every sealed product for the set. Anything made of Play Boosters gets a price per
- * booster set against the value of an average pack, and can stand in as the box price.
- */
 const GROUPS: { title: string; kinds: SealedKind[]; collapsed?: boolean }[] = [
-  {
-    title: "Play Boosters",
-    kinds: ["Play Booster Display", "Play Booster Pack", "Sleeved Play Booster", "Play Booster Case", "Bundle", "Gift Bundle"],
-  },
+  { title: "Play Boosters", kinds: ["Play Booster Display", "Play Booster Pack", "Sleeved Play Booster", "Play Booster Case"] },
+  { title: "Draft Boosters", kinds: ["Draft Booster Display", "Draft Booster Pack", "Draft Booster Case"] },
+  { title: "Set Boosters", kinds: ["Set Booster Display", "Set Booster Pack", "Set Booster Case"] },
   { title: "Collector Boosters", kinds: ["Collector Booster Display", "Collector Booster Pack", "Collector Booster Case"] },
+  { title: "Bundles", kinds: ["Bundle", "Gift Bundle"] },
   { title: "Commander decks", kinds: ["Commander Deck"] },
   { title: "Everything else", kinds: ["Prerelease Pack", "Starter Kit", "Scene Box", "Jumpstart", "Case", "Other"], collapsed: true },
 ];
 
+/** A booster of this set the calculator can price, with its value at the current settings. */
+export interface PricedBooster {
+  type: BoosterType;
+  packsPerBox: number;
+  evPack: number;
+  /** The TCGplayer listing behind the booster's market box price. */
+  boxUrl: string | null;
+}
+
 /**
- * Every sealed product for the set, grouped. Anything made of Play Boosters gets a price
- * per booster set against the value of an average pack, and can stand in as the box price.
+ * Every sealed product for the set, grouped. Anything with a known number of boosters
+ * inside gets a price per booster, set against the value of an average booster of that
+ * kind, and can stand in as the box price for that booster.
  */
 export function SealedSection({
   products,
-  evPack,
-  packsPerBox,
+  boosters,
+  current,
   boxPrice,
   onUseAsBox,
 }: {
   products: SealedProduct[];
-  evPack: number;
-  packsPerBox: number;
+  boosters: PricedBooster[];
+  /** The booster the calculator is showing. */
+  current: BoosterType;
   boxPrice: number | null;
-  onUseAsBox: (price: number | null) => void;
+  /** Switch the calculator to a booster and price its box; null means the display's market price. */
+  onUseAsBox: (booster: BoosterType, price: number | null) => void;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   // Unpriced listings (no sales, no offers yet) stay in the list, after the priced ones.
   const groups = GROUPS.map((g) => ({ ...g, items: products.filter((p) => g.kinds.includes(p.kind)) })).filter((g) => g.items.length);
 
   const row = (p: SealedProduct) => {
+    // Snapshots from before sealed rows named their booster only counted Play Boosters.
+    const type = p.booster ?? boosterOfKind(p.kind) ?? (p.packs ? "play" : null);
+    const priced = boosters.find((b) => b.type === type);
     const perPack = p.packs && p.market != null ? p.market / p.packs : null;
-    const r = perPack != null && evPack > 0 ? perPack / evPack : null;
-    // What this product implies for a full box, e.g. thirty loose packs.
-    const asBox = perPack != null ? perPack * packsPerBox : null;
-    const active = asBox != null && boxPrice != null && Math.abs(asBox - boxPrice) < 0.005;
+    const r = perPack != null && priced && priced.evPack > 0 ? perPack / priced.evPack : null;
+    // What this product implies for a full box of that booster, e.g. thirty loose packs.
+    const asBox = perPack != null && priced ? perPack * priced.packsPerBox : null;
+    const active = type === current && asBox != null && boxPrice != null && Math.abs(asBox - boxPrice) < 0.005;
+    // The listing the market box price comes from: using it just drops any override.
+    const isMarketBox = priced?.boxUrl != null && p.url === priced.boxUrl;
     const title = p.kind === "Other" || p.kind === "Case" || p.kind === "Commander Deck" ? shortName(p.name) : p.kind;
     return (
       <tr key={p.productId} className="border-b border-hairline">
@@ -78,19 +92,24 @@ export function SealedSection({
         <td className="num hidden py-2 pl-4 text-right text-body sm:table-cell">{money(p.low)}</td>
         <td className="num hidden py-2 pl-4 text-right md:table-cell">
           {perPack != null ? money(perPack) : <span className="text-muted">—</span>}
-          {p.packs != null && p.packs > 1 && <span className="block font-sans text-[11.5px] text-muted">{p.packs} boosters</span>}
+          {p.packs != null && p.packs > 1 && (
+            <span className="block font-sans text-[11.5px] text-muted">
+              {p.packs} {type && (p.kind === "Bundle" || p.kind === "Gift Bundle") ? `${BOOSTER_NAME[type]}s` : "boosters"}
+            </span>
+          )}
         </td>
         <td className="num hidden py-2 pl-4 text-right md:table-cell">{r != null ? ratio(r) : <span className="text-muted">—</span>}</td>
         <td className="py-2 pl-4 text-right whitespace-nowrap">
           {asBox != null &&
+            type &&
             (active ? (
               <span className="kicker text-body">In use</span>
             ) : (
               <button
                 type="button"
-                onClick={() => onUseAsBox(p.kind === "Play Booster Display" ? null : Math.round(asBox * 100) / 100)}
+                onClick={() => onUseAsBox(type, isMarketBox ? null : Math.round(asBox * 100) / 100)}
                 className="kicker text-ink underline decoration-1 underline-offset-4 hover:decoration-2"
-                title={`Price the calculator as ${packsPerBox} boosters bought this way: ${money(asBox)}`}
+                title={`Price the ${BOOSTER_NAME[type]} calculator as ${priced!.packsPerBox} boosters bought this way: ${money(asBox)}`}
               >
                 Use as box
               </button>
@@ -113,13 +132,16 @@ export function SealedSection({
               <th scope="col" className="hidden py-2 pl-4 text-right font-semibold md:table-cell">
                 <span className="inline-flex items-center gap-1.5">
                   Per booster
-                  <InfoTip>Market price divided by the Play Boosters inside. Bundles also hold lands, a promo and a spindown, which this ignores.</InfoTip>
+                  <InfoTip>Market price divided by the boosters inside. Bundles also hold lands, a promo and a spindown, which this ignores.</InfoTip>
                 </span>
               </th>
               <th scope="col" className="hidden py-2 pl-4 text-right font-semibold md:table-cell">
                 <span className="inline-flex items-center gap-1.5">
                   Price ÷ value
-                  <InfoTip>Price per booster divided by the value of an average pack at your settings. Under 1.00× the packs are worth more than they cost.</InfoTip>
+                  <InfoTip>
+                    Price per booster divided by the value of an average booster of the same kind at your settings. Under 1.00× the
+                    packs are worth more than they cost.
+                  </InfoTip>
                 </span>
               </th>
               <th scope="col" className="py-2 pl-4 font-semibold">
@@ -156,7 +178,8 @@ export function SealedSection({
       </div>
       <p className="mt-4 text-[13px] text-body">
         TCGplayer market prices (recent sales) and lowest current listings. Commander decks come from the set&rsquo;s Commander
-        listing on TCGplayer. &ldquo;Use as box&rdquo; prices the calculator as {packsPerBox} boosters bought that way.
+        listing on TCGplayer. &ldquo;Use as box&rdquo; prices a full box of that booster as boosters bought that way, and switches
+        the calculator to it.
       </p>
     </div>
   );

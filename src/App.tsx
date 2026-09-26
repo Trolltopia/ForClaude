@@ -12,9 +12,11 @@ const MethodPage = lazy(() => import("@/pages/MethodPage").then((m) => ({ defaul
 
 function ScrollToTop() {
   const [path] = useLocation();
+  // Switching booster on a set page swaps the numbers in place; only a new page starts at the top.
+  const page = path.replace(/^(\/sets\/[^/]+)\/.*$/, "$1");
   useEffect(() => {
     if (!window.location.hash) window.scrollTo(0, 0);
-  }, [path]);
+  }, [page]);
   return null;
 }
 
@@ -50,7 +52,9 @@ export function App() {
             <Suspense fallback={<Masthead variant="compact" />}>
               <Switch>
                 <Route path="/" component={HomePage} />
-                <Route path="/sets/:code">{(p) => <SetPage key={p.code} code={p.code.toLowerCase()} />}</Route>
+                <Route path="/sets/:code/:booster?">
+                  {(p) => <SetPage key={p.code} code={p.code.toLowerCase()} booster={p.booster?.toLowerCase()} />}
+                </Route>
                 <Route path="/method" component={MethodPage} />
                 <Route component={NotFound} />
               </Switch>
