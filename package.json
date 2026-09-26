@@ -12,6 +12,7 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "data": "tsx scripts/build-data.ts",
+    "discover": "tsx scripts/discover-sets.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest"

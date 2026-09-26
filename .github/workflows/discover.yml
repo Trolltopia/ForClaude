@@ -1,0 +1,24 @@
+name: Discover sets
+
+# Lists every set MTGJSON can model a booster for, with MTGJSON's sealed box sizes and
+# whether TCGplayer carries it. Run by hand when extending src/sets/catalog.ts.
+on:
+  workflow_dispatch:
+    inputs:
+      args:
+        description: Extra arguments, e.g. "--raw lea kld" for raw sealed-product records
+        default: ""
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Discover
+        run: npm run discover -- ${{ github.event.inputs.args }}
