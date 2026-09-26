@@ -146,7 +146,7 @@ export function CardTable({ cards }: { cards: CardStat[] }) {
         </span>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className="w-full border-collapse text-left text-[14px] md:min-w-[840px]">
           <caption className="sr-only">Every card you can open, with price, odds and contribution to box value</caption>
           <thead>

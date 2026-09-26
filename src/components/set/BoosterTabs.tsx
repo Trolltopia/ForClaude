@@ -11,7 +11,8 @@ export interface BoosterTab {
   /** The box price this booster is priced at: your own for the current one, market for the rest. */
   boxPrice: number | null;
   evBox: number;
-  href: string;
+  /** Null for a booster the set was sold in that we can't model yet. */
+  href: string | null;
 }
 
 /** Which booster the page prices. Each tab carries its own price ÷ value, so they compare at a glance. */
@@ -22,6 +23,17 @@ export function BoosterTabs({ tabs, current, provisional }: { tabs: BoosterTab[]
       {tabs.map((t) => {
         const active = t.type === current;
         const r = t.boxPrice && t.evBox > 0 ? t.boxPrice / t.evBox : null;
+        if (t.href == null) {
+          return (
+            <span key={t.type} aria-disabled="true" className="block min-w-0 flex-1 px-3 py-2.5 text-muted sm:w-60 sm:flex-none sm:px-4">
+              <span className="block truncate font-sans text-[15px] font-bold">
+                <span className="sm:hidden">{BOOSTER_SHORT[t.type]}</span>
+                <span className="hidden sm:inline">{t.name}</span>
+              </span>
+              <span className="mt-0.5 block truncate text-[12.5px]">Not priced yet</span>
+            </span>
+          );
+        }
         return (
           <Link
             key={t.type}

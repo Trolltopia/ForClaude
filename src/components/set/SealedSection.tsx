@@ -77,11 +77,11 @@ export function SealedSection({
     const title = p.kind === "Other" || p.kind === "Case" || p.kind === "Commander Deck" ? shortName(p.name) : p.kind;
     return (
       <tr key={p.productId} className="border-b border-hairline">
-        <td className="py-2 pr-4">
+        <td className="w-full max-w-0 py-2 pr-4">
           <a href={p.url} target="_blank" rel="noreferrer" className="group flex items-center gap-3">
             <Thumb src={p.image} alt="" />
             <span className="min-w-0">
-              <span className="block font-semibold group-hover:underline group-hover:underline-offset-2">{title}</span>
+              <span className="block truncate font-semibold group-hover:underline group-hover:underline-offset-2">{title}</span>
               <span className="block truncate text-[12.5px] text-body">{p.name}</span>
             </span>
           </a>
@@ -121,21 +121,21 @@ export function SealedSection({
 
   return (
     <div>
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className="w-full border-collapse text-left text-[14px] md:min-w-[760px]">
           <caption className="sr-only">Sealed products for this set with TCGplayer prices</caption>
           <thead>
             <tr className="border-b border-ink text-[12px] text-body">
               <th scope="col" className="py-2 pr-4 font-semibold">Product</th>
-              <th scope="col" className="py-2 pl-4 text-right font-semibold">Market</th>
-              <th scope="col" className="hidden py-2 pl-4 text-right font-semibold sm:table-cell">Lowest listing</th>
-              <th scope="col" className="hidden py-2 pl-4 text-right font-semibold md:table-cell">
+              <th scope="col" className="py-2 pl-4 text-right font-semibold whitespace-nowrap">Market</th>
+              <th scope="col" className="hidden py-2 pl-4 text-right font-semibold whitespace-nowrap sm:table-cell">Lowest listing</th>
+              <th scope="col" className="hidden py-2 pl-4 text-right font-semibold whitespace-nowrap md:table-cell">
                 <span className="inline-flex items-center gap-1.5">
                   Per booster
                   <InfoTip>Market price divided by the boosters inside. Bundles also hold lands, a promo and a spindown, which this ignores.</InfoTip>
                 </span>
               </th>
-              <th scope="col" className="hidden py-2 pl-4 text-right font-semibold md:table-cell">
+              <th scope="col" className="hidden py-2 pl-4 text-right font-semibold whitespace-nowrap md:table-cell">
                 <span className="inline-flex items-center gap-1.5">
                   Price ÷ value
                   <InfoTip>

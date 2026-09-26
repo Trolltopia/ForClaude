@@ -136,7 +136,7 @@ export function classifySealed(p: TcgProduct, opts: ClassifyOptions = {}): Seale
   }
   if (isCase) return "Case";
   if (/bundle booster/i.test(n)) return "Other";
-  if (/gift bundle/i.test(n)) return "Gift Bundle";
+  if (/gift bundle|bundle gift edition/i.test(n)) return "Gift Bundle";
   if (/bundle/i.test(n)) return "Bundle";
   if (/prerelease/i.test(n)) return "Prerelease Pack";
   if (/commander (deck|kit)/i.test(n) || (opts.commander && /\bdecks?\b/i.test(n))) return "Commander Deck";
@@ -150,15 +150,24 @@ export function classifySealed(p: TcgProduct, opts: ClassifyOptions = {}): Seale
 /** Packs in a display of each booster the set has, e.g. { play: 30, collector: 12 }. */
 export type Displays = Partial<Record<BoosterType, number>>;
 
+// Listings that share a booster's name but not its contents or its price: Special Edition
+// and Omega Collector Boosters, hanger packs.
+const NOT_THE_BOOSTER = /special edition|omega|hanger/i;
+
 /**
  * Which boosters a product holds and how many, where that's fixed and known: packs,
- * displays, Play Booster cases (six displays), and the plain "<set> - Bundle" of the
- * Play Booster era (nine). Themed bundles and older bundles vary, so they get none.
+ * multipacks, displays, Play Booster cases (six displays), and the plain "<set> - Bundle"
+ * of the Play Booster era (nine). Themed bundles and older bundles vary, so they get none.
  */
 export function boostersIn(kind: SealedKind, displays: Displays, name = ""): { booster: BoosterType; packs: number } | null {
+  if (NOT_THE_BOOSTER.test(name)) return null;
   for (const type of BOOSTER_TYPES) {
     const k = BOOSTER_KINDS[type];
-    if (kind === k.pack || (type === "play" && kind === "Sleeved Play Booster")) return { booster: type, packs: 1 };
+    if (kind === k.pack || (type === "play" && kind === "Sleeved Play Booster")) {
+      // "Draft Booster Pack (3-Pack)"
+      const multi = /\b(\d+)[-\s]pack\b/i.exec(name);
+      return { booster: type, packs: multi ? Number(multi[1]) : 1 };
+    }
     const display = displays[type];
     if (kind === k.display) return display ? { booster: type, packs: display } : null;
     if (kind === k.case) return type === "play" && display ? { booster: type, packs: display * 6 } : null;

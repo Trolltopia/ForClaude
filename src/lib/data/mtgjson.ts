@@ -59,6 +59,9 @@ export function boosterConfig(set: MtgjsonSetFile["data"], type: BoosterType): {
 const WORDS: Record<string, string> = {
   dfc: "double-faced",
   mdfc: "modal double-faced",
+  sfc: "single-faced",
+  rm: "rare/mythic",
+  cu: "common/uncommon",
   spg: "Special Guests",
   list: "The List",
   sld: "Secret Lair",
@@ -73,7 +76,11 @@ export function sheetLabel(key: string): string {
     .toLowerCase()
     .split(/\s+/)
     .map((w) => WORDS[w] ?? w);
-  const text = words.join(" ").replace(/\brare mythic\b/g, "rare/mythic");
+  const text = words
+    .join(" ")
+    .replace(/\brare mythic\b/g, "rare/mythic")
+    .replace(/\bcommon uncommon\b/g, "common/uncommon")
+    .replace(/^the The List\b/, "The List");
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 

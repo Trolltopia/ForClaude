@@ -160,7 +160,7 @@ export async function buildSetSnapshot(entry: CatalogEntry, deps: BuildDeps): Pr
   const unmodelled = entry.boosters.filter((spec) => !boosters.some((b) => b.type === spec.type));
   if (unmodelled.length) {
     const names = unmodelled.map((spec) => `${BOOSTER_NAME[spec.type]}s`).join(" and ");
-    notes.push(`${names} aren't priced yet: there are no published print sheets for them to model.`);
+    notes.push(`${names} aren't priced yet: MTGJSON hasn't published their print sheets. They'll appear here once it does.`);
   }
 
   const set = await safeSet(deps.client, entry.code);

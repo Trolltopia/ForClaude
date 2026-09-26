@@ -24,6 +24,7 @@ function Formula({ children }: { children: ReactNode }) {
 
 const TOC: [string, string][] = [
   ["ev", "What expected value means here"],
+  ["boosters", "Play, Draft, Set and Collector"],
   ["sheets", "Slots, sheets and odds"],
   ["prices", "Where the prices come from"],
   ["ratio", "Price ÷ value, and the verdict"],
@@ -68,10 +69,9 @@ export function MethodPage() {
 
             <H id="ev">What expected value means here</H>
             <P>
-              A Play Booster is a handful of slots. Each slot draws a card from a pool — a <em>sheet</em> — with known odds. Multiply
+              A booster is a handful of slots. Each slot draws a card from a pool — a <em>sheet</em> — with known odds. Multiply
               every card&rsquo;s price by the chance it lands in a slot, add it all up, and you have the value of an average pack.
-              A box is thirty of those — thirty-six for sets before Aetherdrift, when Wizards shrank the
-              display.
+              A box is a display of those packs: twelve of them for Collector Boosters, thirty or thirty-six for the rest.
             </P>
             <Formula>
               {`value of a pack = Σ slots  Σ cards in slot   P(card) × price(card)
@@ -80,6 +80,20 @@ value of a box  = packs per box × value of a pack`}
             <P>
               Because averages add up neatly, this number is exact for the model — no sampling, no noise. It isn&rsquo;t what your box
               will be worth. It&rsquo;s the centre of gravity of every box that could exist.
+            </P>
+
+            <H id="boosters">Play, Draft, Set and Collector</H>
+            <P>
+              Each set page prices every booster the set was sold in, with a switch at the top to move between them. From Murders
+              at Karlov Manor (2024) on, that means Play Boosters, thirty-six to a display until Aetherdrift cut it to thirty. Before
+              that, sets came in Draft Boosters, thirty-six to a display, and from Zendikar Rising (2020) to The Lost Caverns of
+              Ixalan (2023) also in Set Boosters, thirty to a display. Collector Boosters run through both eras: twelve packs of
+              foils, alternate art and the rarest printings.
+            </P>
+            <P>
+              The board compares one kind of box at a time: each set&rsquo;s main booster (Play, or Draft before 2024), Set
+              Boosters, or Collector Boosters. A booster we can&rsquo;t model yet — Reality Fracture&rsquo;s Collector Booster,
+              until MTGJSON publishes its print sheets — is listed on the set page as not priced, rather than guessed at.
             </P>
 
             <H id="sheets">Slots, sheets and odds</H>
@@ -104,14 +118,16 @@ value of a box  = packs per box × value of a pack`}
               <a className="prose-link" href="https://scryfall.com/docs/api" target="_blank" rel="noreferrer">
                 Scryfall
               </a>
-              , which refreshes them daily. Foils are priced as foils. The box price is TCGplayer&rsquo;s market price for the
-              Play Booster display, via TCGCSV&rsquo;s daily mirror. When there isn&rsquo;t one, you&rsquo;ll see an
-              estimate marked as such — type in what you&rsquo;d actually pay.
+              , which refreshes them daily. Foils are priced as foils. The box price is TCGplayer&rsquo;s market price for that
+              booster&rsquo;s display, via TCGCSV&rsquo;s daily mirror. When there isn&rsquo;t one, you&rsquo;ll see an
+              estimate marked as such, or no price at all — type in what you&rsquo;d actually pay.
             </P>
             <P>
               The same daily pull lists every sealed product TCGplayer carries for the set — packs, displays, bundles, cases,
-              Collector Boosters — with market and lowest-listing prices. Anything made of Play Boosters is priced per booster
-              against the value of an average pack, and any of them can stand in as the box price.
+              Commander decks — with market and lowest-listing prices. Anything with a known number of boosters inside is priced
+              per booster against an average booster of the same kind, and any of them can stand in as that booster&rsquo;s box
+              price. Special editions and Omega packs share a name with ordinary Collector Boosters but not their contents, so they
+              aren&rsquo;t compared.
             </P>
             <P>
               A new card with no sales yet has no market price. It counts as zero and the set page tells you what share of the

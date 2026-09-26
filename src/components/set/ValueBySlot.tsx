@@ -8,7 +8,7 @@ export function ValueBySlot({ ev }: { ev: EvResult }) {
   const cardsPerPack = rows.reduce((s, r) => s + r.perPack, 0);
 
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full border-collapse text-left sm:min-w-[640px]">
         <caption className="sr-only">Expected value of a box by booster slot</caption>
         <thead>

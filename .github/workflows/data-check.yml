@@ -7,7 +7,7 @@ on:
     inputs:
       sets:
         description: Set codes to build, space-separated
-        default: fra blb fin
+        default: fra fdn woe
   push:
     branches-ignore: [main]
     paths:
@@ -28,4 +28,4 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build and report
-        run: npm run data -- --report ${{ github.event.inputs.sets || 'fra blb fin' }}
+        run: npm run data -- --report ${{ github.event.inputs.sets || 'fra fdn woe' }}

@@ -147,6 +147,11 @@ describe("MTGJSON", () => {
     expect(sheetLabel("foil")).toBe("Traditional foil");
     expect(sheetLabel("specialGuest")).toBe("Special guest");
     expect(sheetLabel("dfc")).toBe("Double-faced");
+    expect(sheetLabel("theList")).toBe("The List");
+    expect(sheetLabel("sfcRareMythicWithShowcase")).toBe("Single-faced rare/mythic with showcase");
+    expect(sheetLabel("rmExtended")).toBe("Rare/mythic extended");
+    expect(sheetLabel("foilRetroCu")).toBe("Foil retro common/uncommon");
+    expect(sheetLabel("commonUncommonShowcase")).toBe("Common/uncommon showcase");
   });
 
   it("maps uuids to Scryfall ids and keeps weights", () => {

@@ -141,7 +141,7 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
   );
 
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full border-collapse text-left md:min-w-[820px]">
         <caption className="sr-only">Every tracked set: box price, expected value, and price-to-value ratio</caption>
         <thead>
@@ -149,7 +149,7 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
             {th("release", "Set", "pr-4")}
             <th scope="col" className="hidden py-2 pr-4 font-semibold lg:table-cell">Released</th>
             {th("price", "Box", "hidden pr-4 text-right md:table-cell")}
-            {th("ev", "Expected value", "hidden pr-6 text-right md:table-cell")}
+            {th("ev", "Expected value", "hidden pr-6 text-right whitespace-nowrap md:table-cell")}
             {th("ratio", "Price ÷ value", "w-[36%] pr-4 md:w-[22%] md:pr-6")}
             <th scope="col" className="hidden py-2 pr-4 font-semibold sm:table-cell">Verdict</th>
             <th scope="col" className="hidden py-2 font-semibold lg:table-cell">Top card</th>
@@ -162,7 +162,7 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
               <tr key={entry.code} className="group cursor-pointer border-b border-hairline hover:bg-canvas-soft" onClick={() => navigate(href)}>
                 <th scope="row" className="py-3.5 pr-4 font-normal">
                   <Link href={href} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                    <span className="flex w-6 justify-center">
+                    <span className="flex w-6 shrink-0 justify-center">
                       <SetIcon src={s?.iconSvg ?? null} className="h-5 w-auto max-w-6" />
                     </span>
                     <span className="font-sans text-[16px] font-bold group-hover:underline group-hover:underline-offset-4">
@@ -171,8 +171,10 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
                     <span className="kicker hidden text-muted sm:inline">{entry.code}</span>
                   </Link>
                 </th>
-                <td className="num hidden py-3.5 pr-4 text-[14px] text-body lg:table-cell">{monthYear(s?.releasedAt ?? entry.releasedAt)}</td>
-                <td className="num hidden py-3.5 pr-4 text-right text-[15px] md:table-cell">
+                <td className="num hidden py-3.5 pr-4 text-[14px] whitespace-nowrap text-body lg:table-cell">
+                  {monthYear(s?.releasedAt ?? entry.releasedAt)}
+                </td>
+                <td className="num hidden py-3.5 pr-4 text-right text-[15px] whitespace-nowrap md:table-cell">
                   {money(b?.boxPrice.usd)}
                   {b?.boxPrice.source === "estimate" && b.boxPrice.usd != null && (
                     <span className="ml-0.5 text-muted" title="Estimated street price">
@@ -185,7 +187,9 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
                     </span>
                   )}
                 </td>
-                <td className="num hidden py-3.5 pr-6 text-right text-[15px] font-semibold md:table-cell">{b ? money(b.evBox) : "—"}</td>
+                <td className="num hidden py-3.5 pr-6 text-right text-[15px] font-semibold whitespace-nowrap md:table-cell">
+                  {b ? money(b.evBox) : "—"}
+                </td>
                 <td className="py-3.5 pr-4 md:pr-6">
                   <div className="flex items-center gap-3">
                     <span className="num w-12 shrink-0 text-[15px] font-semibold">{ratio(b?.ratio)}</span>

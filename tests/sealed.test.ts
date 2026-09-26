@@ -76,6 +76,19 @@ describe("classifySealed", () => {
     expect(classifySealed(P(0, "Theros Beyond Death - Booster Box"))).toBe("Other");
   });
 
+  it("doesn't count special editions, Omega packs, hanger packs or multipacks as one booster", () => {
+    const d = { draft: 36, set: 30, collector: 12 };
+    const LTR = "Universes Beyond: The Lord of the Rings: Tales of Middle-earth";
+    expect(boostersIn("Collector Booster Pack", d, "Wilds of Eldraine - Collector Booster Omega Pack")).toBeNull();
+    expect(boostersIn("Collector Booster Display", d, "The Lord of the Rings: Tales of Middle-earth - Special Edition Collector Booster Display")).toBeNull();
+    expect(boostersIn("Collector Booster Pack", d, "Zendikar Rising - Collector Booster Hanger Pack")).toBeNull();
+    expect(boostersIn("Draft Booster Pack", d, `${LTR} - Draft Booster Pack (3-Pack)`)).toEqual({ booster: "draft", packs: 3 });
+    expect(boostersIn("Set Booster Pack", d, `${LTR} - Sleeved Set Booster Pack`)).toEqual({ booster: "set", packs: 1 });
+    expect(boostersIn("Draft Booster Pack", d, "Core Set 2021 - Draft Booster Pack")).toEqual({ booster: "draft", packs: 1 });
+    expect(classifySealed(P(0, "Zendikar Rising - Bundle Gift Edition"))).toBe("Gift Bundle");
+    expect(classifySealed(P(0, "Theros Beyond Death - Collector Booster Pack Display"))).toBe("Collector Booster Display");
+  });
+
   it("counts boosters in packs, displays and Play Booster cases", () => {
     const d = { draft: 36, set: 30, collector: 12 };
     expect(boostersIn("Set Booster Pack", d)).toEqual({ booster: "set", packs: 1 });

@@ -15,7 +15,7 @@ import { Masthead } from "@/components/site/Masthead";
 import { useSnapshot } from "@/hooks/useSnapshot";
 import { useQueryNumbers } from "@/hooks/useQueryState";
 import { SIM_BOXES, useSimulation } from "@/hooks/useSimulation";
-import { boosterView } from "@/lib/boosters";
+import { BOOSTER_NAME, boosterView, byBoosterOrder } from "@/lib/boosters";
 import { computeEv, DEFAULT_FEES, type EvParams } from "@/lib/engine/ev";
 import { count, isReleased, money, percent } from "@/lib/format";
 import type { BoosterType } from "@/lib/types";
@@ -96,14 +96,20 @@ export function SetPage({ code, booster: requested }: { code: string; booster?: 
             <BoosterTabs
               current={snapshot.booster}
               provisional={!isReleased(snapshot.releasedAt)}
-              tabs={boosters.map(({ booster: b, evBox }) => ({
-                type: b.type,
-                name: b.name,
-                packsPerBox: b.packsPerBox,
-                boxPrice: b === current ? boxPrice : b.boxPrice.usd,
-                evBox,
-                href: boosterHref(code, b.type, main, search),
-              }))}
+              tabs={[
+                ...boosters.map(({ booster: b, evBox }) => ({
+                  type: b.type,
+                  name: b.name,
+                  packsPerBox: b.packsPerBox,
+                  boxPrice: b === current ? boxPrice : b.boxPrice.usd,
+                  evBox,
+                  href: boosterHref(code, b.type, main, search),
+                })),
+                // Boosters the set was sold in that nobody has published sheets for yet.
+                ...(entry?.boosters ?? [])
+                  .filter((spec) => !set!.boosters.some((b) => b.type === spec.type))
+                  .map((spec) => ({ type: spec.type, name: BOOSTER_NAME[spec.type], packsPerBox: spec.packsPerBox, boxPrice: null, evBox: 0, href: null })),
+              ].sort(byBoosterOrder)}
             />
             <Controls
               productName={snapshot.product.name}
