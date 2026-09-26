@@ -248,11 +248,15 @@ export function FixedPage({ kind, id }: { kind: FixedKind; id: string }) {
               aria-label="Verdict"
             >
               <p className="kicker opacity-70">The verdict</p>
-              <p className="display mt-2 text-[44px] leading-none">{verdict ? VERDICT_TITLE[verdict] : "Not enough prices"}</p>
+              <p className="display mt-2 text-[44px] leading-none">
+                {verdict ? VERDICT_TITLE[verdict] : released ? "Not enough prices" : VERDICT_TITLE.early}
+              </p>
               <p className="mt-4 font-serif text-[16px] leading-snug opacity-90">
                 {verdict
                   ? fixedVerdictLine(price, value, noun, product.releasedAt, unpriced)
-                  : `${count(unpriced)} of the ${count(copies)} cards have no market price yet. Without them the cards come to ${money(value)}, so we can’t yet say whether opening beats the sealed price.`}
+                  : released
+                    ? `${count(unpriced)} of the ${count(copies)} cards have no market price yet. Without them the cards come to ${money(value)}, so we can’t yet say whether opening beats the sealed price.`
+                    : `It isn’t out until ${date(product.releasedAt)}, and ${count(unpriced)} of its ${count(copies)} cards have no sales yet, so there’s nothing to compare. Come back after release.`}
               </p>
             </aside>
           )}

@@ -216,7 +216,9 @@ function Board({ rows: all, kind, grouped }: { rows: Row[]; kind: FixedKind; gro
                       {v ? (
                         VERDICT_TITLE[v]
                       ) : (
-                        <span className="font-normal text-muted">{p.price.usd == null ? "No sealed price" : "Prices missing"}</span>
+                        <span className="font-normal text-muted">
+                          {!isReleased(p.releasedAt) ? VERDICT_TITLE.early : p.price.usd == null ? "No sealed price" : "Prices missing"}
+                        </span>
                       )}
                     </td>
                     <td className="hidden max-w-56 py-3.5 text-[14px] xl:table-cell">
