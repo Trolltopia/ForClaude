@@ -24,6 +24,8 @@ const scry = [
   sf("ring", { usd: "1.5", usd_foil: "3" }),
   sf("bulk", { usd: "0.1", usd_foil: "0.2" }),
   sf("chase", { usd: "40", usd_foil: "55" }),
+  // Scryfall knows the regular price but not the foil one the product holds.
+  sf("lair", { usd: "15" }),
 ];
 
 function fakeClient() {
@@ -47,7 +49,13 @@ const setFile: MtgjsonSetFile = {
     code: "TSC",
     name: "Test Commander",
     tcgplayerGroupId: 77,
-    cards: scry.map((c) => ({ uuid: `u-${c.id}`, name: c.name, number: "1", setCode: "TSC", identifiers: { scryfallId: c.id } })),
+    cards: scry.map((c) => ({
+      uuid: `u-${c.id}`,
+      name: c.name,
+      number: "1",
+      setCode: "TSC",
+      identifiers: { scryfallId: c.id, ...(c.id === "lair" ? { tcgplayerProductId: "7001" } : {}) },
+    })),
     sealedProduct: [
       { uuid: "sp-1", name: "Test Commander Deck Elves", category: "deck", identifiers: { tcgplayerProductId: "5001" } },
       { uuid: "sp-2", name: "Test Commander Deck Rings", category: "deck", identifiers: { tcgplayerProductId: "5002" } },
@@ -67,7 +75,16 @@ const setFile: MtgjsonSetFile = {
         ],
         sealedProductUuids: ["sp-1"],
       },
-      { code: "TSC", name: "Rings", type: "Commander Deck", mainBoard: [{ count: 1, uuid: "u-ring" }], sealedProductUuids: ["sp-2"] },
+      {
+        code: "TSC",
+        name: "Rings",
+        type: "Commander Deck",
+        mainBoard: [
+          { count: 1, uuid: "u-ring" },
+          { count: 1, uuid: "u-lair", isFoil: true },
+        ],
+        sealedProductUuids: ["sp-2"],
+      },
     ],
   },
 };
@@ -87,6 +104,8 @@ const tcgGroup = async (groupId: number) => {
     prices: [
       { productId: 5001, marketPrice: 50, subTypeName: "Normal" },
       { productId: 5002, marketPrice: null, midPrice: null, lowPrice: null, subTypeName: "Normal" },
+      { productId: 7001, marketPrice: 14, subTypeName: "Normal" },
+      { productId: 7001, marketPrice: 22, subTypeName: "Foil" },
     ],
   };
 };
@@ -127,6 +146,10 @@ describe("fixed products", () => {
     expect(elves.notes.some((n) => n.startsWith("1 card in the list could not be matched"))).toBe(true);
     expect(rings.price.usd).toBeNull();
     expect(rings.notes).toContain("TCGplayer has no market price for the sealed product yet.");
+    // No foil price on Scryfall: TCGplayer's own foil price fills in, and the page says so.
+    expect(rings.cards.find((c) => c.id === "lair")).toMatchObject({ finish: "foil", price: 22 });
+    expect(rings.notes.some((n) => n.startsWith("1 card price comes straight from TCGplayer"))).toBe(true);
+    expect(elves.notes.some((n) => n.includes("straight from TCGplayer"))).toBe(false);
   });
 
   it("values the cards at anyone's settings", async () => {

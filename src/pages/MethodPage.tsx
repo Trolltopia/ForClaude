@@ -207,8 +207,9 @@ value of a box  = packs per box × value of a pack`}
             <P>
               A preconstructed Commander deck or a Secret Lair drop holds the same cards in every copy, so there is nothing to
               simulate: opened, it is worth exactly what its cards are worth. MTGJSON publishes the card list of each one, down to
-              which cards are foil or etched foil. We price every card at its TCGplayer market price in that finish, multiply by the
-              copies, and apply your minimum price and selling fees just as for boosters. The sealed price is TCGplayer&rsquo;s
+              which cards are foil or etched foil. We price every card at its TCGplayer market price in that finish, by way of
+              Scryfall, or straight from TCGplayer&rsquo;s price list when Scryfall has none for that finish (common for foil-only
+              editions). Then we multiply by the copies and apply your minimum price and selling fees just as for boosters. The sealed price is TCGplayer&rsquo;s
               market price for the sealed product, matched through the product ids MTGJSON records.
             </P>
             <P>

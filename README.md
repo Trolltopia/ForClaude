@@ -1,6 +1,7 @@
 # Crack or Keep
 
-What a Magic: The Gathering booster box is worth once you open it, priced every morning.
+What a Magic: The Gathering booster box, Commander deck or Secret Lair drop is worth once you
+open it, priced every morning.
 
 For every paper set since Limited Edition Alpha (1993) that MTGJSON models and TCGplayer sells,
 162 of them, the site works out the expected value of each kind of booster box the set was sold
@@ -41,6 +42,19 @@ The front page is a board of every tracked set, sortable by name or return, sear
 filterable by years, comparing each set's main booster box, its Set Boosters or its
 Collector Boosters.
 
+## Commander decks and Secret Lair drops
+
+`/decks` lists every preconstructed Commander deck MTGJSON has a card list for (2011 on,
+Secret Lair Commander decks included) and `/secret-lair` every Secret Lair drop. Their
+contents are fixed, so there is nothing to simulate: each card is priced at its TCGplayer
+market price in the finish the product holds it (foil, etched or regular; from Scryfall, or
+from TCGplayer's own price list via TCGCSV when Scryfall has no price for that finish), times
+the copies, at your minimum price and fees, and the total is set against the sealed product's
+TCGplayer market price. Decks sit under their set; the Set heading sorts sets A to Z. Each
+product has a page with its most valuable cards and the full list. Cards with no market price
+yet count as nothing, so a partly priced product's value is a floor: it can still show a
+gain, but gets no verdict otherwise.
+
 ## Where the data comes from
 
 | What | Source |
@@ -50,9 +64,12 @@ Collector Boosters.
 | Card prices (TCGplayer market) and images | [Scryfall API](https://scryfall.com/docs/api) |
 | Sealed product prices (TCGplayer market and low) | [TCGCSV](https://tcgcsv.com) |
 | What's inside each box, bundle and case; TCGplayer product ids | MTGJSON sealed-product records |
+| Commander deck and Secret Lair card lists, with foil and etched finishes | MTGJSON deck lists (`DeckList.json` and each set's `decks`) |
 
 `npm run data` builds one JSON snapshot per set into `public/data/` (every booster of the
-set over one shared card pool), plus an `index.json` for the board. The GitHub Actions workflow runs it every morning before deploying. Without
+set over one shared card pool), plus an `index.json` for the board, and the same for
+Commander decks (`decks.json`, `decks/`) and Secret Lair drops (`secret-lair.json`,
+`secret-lair/`). The GitHub Actions workflow runs it every morning before deploying. Without
 a snapshot, the browser can build a set with a rules file (FRA) straight from Scryfall, and
 any set page can refresh its prices live with **Refresh from Scryfall**.
 
@@ -62,7 +79,8 @@ Requires Node 22+.
 
 ```bash
 npm install
-npm run data        # fetch prices for every set (or: npm run data -- fra msh)
+npm run data        # fetch prices for everything (or: npm run data -- fra msh)
+npm run data -- --decks --secret-lair   # only Commander decks and Secret Lair drops
 npm run dev         # http://localhost:5173
 ```
 
@@ -120,7 +138,7 @@ scripts/build-data.ts     daily snapshot builder (MTGJSON + Scryfall + TCGCSV)
 src/lib/engine/           expected value, alias sampling, box simulation, worker
 src/lib/data/             Scryfall, MTGJSON and TCGCSV adapters; rules-based collation
 src/sets/                 set catalog and hand-written collations
-src/pages/                board, set calculator, method
+src/pages/                board, set calculator, decks and drops, method
 src/components/           site chrome, charts, set sections, ui primitives
 tests/                    Vitest unit tests
 ```

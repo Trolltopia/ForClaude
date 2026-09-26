@@ -25,7 +25,7 @@ export interface MtgjsonCard {
   number: string;
   setCode: string;
   side?: string;
-  identifiers?: { scryfallId?: string };
+  identifiers?: { scryfallId?: string; tcgplayerProductId?: string; tcgplayerEtchedProductId?: string };
 }
 
 /** A sealed product as MTGJSON records it: what's inside, and its id on TCGplayer. */

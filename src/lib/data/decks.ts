@@ -41,6 +41,14 @@ export interface FixedDeps {
   log?: (line: string) => void;
 }
 
+interface CardIds {
+  scryfallId: string;
+  tcg: number | null;
+  tcgEtched: number | null;
+  /** The TCGplayer group of the set file the card came from. */
+  group: number | null;
+}
+
 interface Pending {
   entry: DeckListEntry;
   kind: FixedKind;
@@ -60,7 +68,8 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
   const byCode = new Map<string, DeckListEntry[]>();
   for (const e of entries) byCode.set(e.code.toUpperCase(), [...(byCode.get(e.code.toUpperCase()) ?? []), e]);
 
-  const uuidToScryfall = new Map<string, string>();
+  // Each card's Scryfall id, and where TCGplayer lists it in case Scryfall has no price.
+  const uuidInfo = new Map<string, CardIds>();
   // Set files whose cards are already in the map; many lists share the same source sets.
   const indexed = new Set<string>();
   const pending: Pending[] = [];
@@ -74,7 +83,15 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
     }
     const indexCards = (setCode: string, f: MtgjsonSetFile) => {
       indexed.add(setCode);
-      for (const c of [...f.data.cards, ...(f.data.tokens ?? [])]) if (c.identifiers?.scryfallId) uuidToScryfall.set(c.uuid, c.identifiers.scryfallId);
+      for (const c of [...f.data.cards, ...(f.data.tokens ?? [])]) {
+        if (!c.identifiers?.scryfallId) continue;
+        uuidInfo.set(c.uuid, {
+          scryfallId: c.identifiers.scryfallId,
+          tcg: Number(c.identifiers.tcgplayerProductId) || null,
+          tcgEtched: Number(c.identifiers.tcgplayerEtchedProductId) || null,
+          group: f.data.tcgplayerGroupId ?? null,
+        });
+      }
     };
     if (!indexed.has(code)) indexCards(code, file);
 
@@ -123,8 +140,47 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
   }
 
   // One Scryfall pass for every card in every list.
-  const ids = [...new Set(pending.flatMap((p) => p.contents.map((c) => uuidToScryfall.get(c.uuid)).filter((id): id is string => !!id)))];
+  const ids = [...new Set(pending.flatMap((p) => p.contents.map((c) => uuidInfo.get(c.uuid)?.scryfallId).filter((id): id is string => !!id)))];
   const cards = new Map((ids.length ? await deps.client.collection(ids) : []).map((c) => [c.id, normaliseCard(c)]));
+
+  // Scryfall often has a card's regular price but not the foil one a product holds (Secret
+  // Lair foil editions, Collector's Edition decks). TCGplayer's own price list, the same one
+  // the sealed prices come from, usually has it.
+  const groupPrices = new Map<number, Promise<Map<number, { normal: number | null; foil: number | null }>>>();
+  const pricesOf = (group: number) => {
+    if (!groupPrices.has(group)) {
+      groupPrices.set(
+        group,
+        deps
+          .tcgGroup(group)
+          .then(({ prices }) => {
+            const out = new Map<number, { normal: number | null; foil: number | null }>();
+            for (const p of prices) {
+              const row = out.get(p.productId) ?? { normal: null, foil: null };
+              const usd = p.marketPrice ?? p.midPrice ?? null;
+              if (p.subTypeName === "Foil") row.foil = usd;
+              else if (!p.subTypeName || p.subTypeName === "Normal") row.normal = usd;
+              out.set(p.productId, row);
+            }
+            return out;
+          })
+          .catch(() => new Map()),
+      );
+    }
+    return groupPrices.get(group)!;
+  };
+  const tcgPrices = new Map<string, number | null>();
+  for (const { contents } of pending) {
+    for (const c of contents) {
+      const info = uuidInfo.get(c.uuid);
+      const card = cards.get(info?.scryfallId ?? "");
+      const key = `${c.uuid}:${c.finish}`;
+      if (!info?.group || !card || priceInFinish(card, c.finish) != null || tcgPrices.has(key)) continue;
+      const row = (await pricesOf(info.group)).get((c.finish === "etched" ? info.tcgEtched : null) ?? info.tcg ?? -1);
+      const onlyFoil = !card.finishes.includes("nonfoil");
+      tcgPrices.set(key, c.finish === "nonfoil" ? (row?.normal ?? (onlyFoil ? row?.foil : null) ?? null) : (row?.foil ?? null));
+    }
+  }
 
   const used = new Set<string>();
   let explained = 0;
@@ -135,11 +191,17 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
     const notes: string[] = [];
     const list: FixedCard[] = [];
     let missing = 0;
+    let fromTcg = 0;
     for (const c of contents) {
-      const card = cards.get(uuidToScryfall.get(c.uuid) ?? "");
+      const card = cards.get(uuidInfo.get(c.uuid)?.scryfallId ?? "");
       if (!card) {
         missing += c.count;
         continue;
+      }
+      let price = priceInFinish(card, c.finish);
+      if (price == null) {
+        price = tcgPrices.get(`${c.uuid}:${c.finish}`) ?? null;
+        if (price != null) fromTcg += c.count;
       }
       list.push({
         id: card.id,
@@ -150,7 +212,7 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
         treatmentLabel: card.treatmentLabel,
         finish: c.finish,
         count: c.count,
-        price: priceInFinish(card, c.finish),
+        price,
         image: card.image,
         scryfallUri: card.scryfallUri,
         ...(c.commander ? { commander: true } : {}),
@@ -167,6 +229,7 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
       }
     }
     if (missing) notes.push(`${missing} card${missing === 1 ? "" : "s"} in the list could not be matched to Scryfall and are left out.`);
+    if (fromTcg) notes.push(`${fromTcg} card price${fromTcg === 1 ? " comes" : "s come"} straight from TCGplayer: Scryfall had none for the finish in this product.`);
     if (price.usd == null) notes.push("TCGplayer has no market price for the sealed product yet.");
     return {
       version: 1 as const,
