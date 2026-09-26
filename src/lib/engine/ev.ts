@@ -180,6 +180,20 @@ export function computeEv(snapshot: Pick<Snapshot, "model" | "cards" | "product"
   };
 }
 
+/**
+ * A box's card value before fees at each minimum card price in `floors`: the sum, over
+ * cards priced at or above the minimum, of price times expected copies per box. Value at
+ * any fee is then (1 − fee) × this, so a board of summaries can follow anyone's settings.
+ */
+export function grossByFloor(snapshot: Pick<Snapshot, "model" | "cards" | "product">, floors: number[]): number[] {
+  const { cards } = computeEv(snapshot, { floor: 0, fees: 0 });
+  return floors.map((floor) => {
+    let total = 0;
+    for (const c of cards) if (c.price != null && c.price >= floor) total += c.price * c.perBox;
+    return total;
+  });
+}
+
 /** The single most expensive card you can open, in any finish, with its price. */
 export function mostValuable(snapshot: Pick<Snapshot, "model" | "cards">) {
   let best: { card: CardRecord; foil: boolean; price: number } | null = null;

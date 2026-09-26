@@ -211,12 +211,28 @@ describe("runs of several boxes", () => {
 });
 
 describe("verdict", () => {
-  it("calls crack, toss-up and keep around 1.00×, and holds off before release", async () => {
+  it("calls crack, toss-up and keep on the return, and holds off before release", async () => {
     const { verdictFor } = await import("../src/lib/verdict");
-    expect(verdictFor(0.8, "2020-01-01")).toBe("crack");
-    expect(verdictFor(1.02, "2020-01-01")).toBe("toss-up");
-    expect(verdictFor(1.3, "2020-01-01")).toBe("keep");
-    expect(verdictFor(0.2, "2999-01-01")).toBe("early");
+    expect(verdictFor(0.25, "2020-01-01")).toBe("crack");
+    expect(verdictFor(0.05, "2020-01-01")).toBe("crack");
+    expect(verdictFor(0.02, "2020-01-01")).toBe("toss-up");
+    expect(verdictFor(-0.04, "2020-01-01")).toBe("toss-up");
+    expect(verdictFor(-0.05, "2020-01-01")).toBe("keep");
+    expect(verdictFor(-0.3, "2020-01-01")).toBe("keep");
+    expect(verdictFor(0.8, "2999-01-01")).toBe("early");
     expect(verdictFor(null)).toBeNull();
+  });
+
+  it("measures the return on the price and writes it with a sign", async () => {
+    const { returnOf } = await import("../src/lib/verdict");
+    const { signedPercent } = await import("../src/lib/format");
+    expect(returnOf(100, 135)).toBeCloseTo(0.35);
+    expect(returnOf(100, 88)).toBeCloseTo(-0.12);
+    expect(returnOf(null, 88)).toBeNull();
+    expect(returnOf(100, 0)).toBeNull();
+    expect(signedPercent(0.35)).toBe("+35%");
+    expect(signedPercent(-0.12)).toBe("−12%");
+    expect(signedPercent(0.004)).toBe("0%");
+    expect(signedPercent(2.45)).toBe("+245%");
   });
 });

@@ -3,6 +3,7 @@ import { useSnapshotIndex } from "@/hooks/useSnapshotIndex";
 import { ago, stamp, today } from "@/lib/format";
 import { MarketStrip } from "./MarketStrip";
 import { SetMenu } from "./SetMenu";
+import { SettingsMenu } from "./SettingsMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import { Wordmark } from "./Wordmark";
 
@@ -15,7 +16,8 @@ function NavLinks() {
         The Board
       </Link>
       <SetMenu />
-      <Link href="/method" className="hover-rule font-sans text-[14px] font-bold tracking-[0.02em]">
+      <SettingsMenu />
+      <Link href="/method" className="hover-rule hidden font-sans text-[14px] font-bold tracking-[0.02em] sm:inline">
         Method
       </Link>
     </>

@@ -203,6 +203,11 @@ export interface BoosterSummary {
     treatmentLabel: string;
   } | null;
   modelSource: ModelSource["kind"];
+  /**
+   * Card value per box before fees at each minimum card price in FLOOR_STEPS, so the board
+   * can show value at anyone's settings. Absent in older indexes.
+   */
+  gross?: number[];
 }
 
 /** Summary row written to data/index.json for the home page. */
@@ -213,7 +218,7 @@ export interface SetSummary {
   iconSvg: string | null;
   /** Main booster first, as in the snapshot. */
   boosters: BoosterSummary[];
-  /** Floor and fees behind evBox and ratio. */
+  /** Floor and fees behind evBox and ratio; `gross` lets readers apply their own. */
   params: { floor: number; fees: number };
 }
 

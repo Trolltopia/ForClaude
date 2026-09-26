@@ -1,28 +1,36 @@
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import { RatioMeter } from "@/components/charts/Bars";
+import { ReturnMeter } from "@/components/charts/Bars";
 import { SetIcon } from "@/components/SetIcon";
 import { Masthead } from "@/components/site/Masthead";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { useSnapshotIndex } from "@/hooks/useSnapshotIndex";
 import { shortBoosterName } from "@/lib/boosters";
-import { date, isReleased, money, monthYear, percent, ratio } from "@/lib/format";
+import { ERAS, type Era } from "@/lib/eras";
+import { date, isReleased, money, monthYear, signedPercent } from "@/lib/format";
+import { toParams, useSettings, type Settings } from "@/lib/settings";
+import { boosterAt } from "@/lib/summary";
 import type { BoosterSummary, BoosterType, SetSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { settingsPhrase, VERDICT_TITLE, verdictFor } from "@/lib/verdict";
-import { ERAS, type Era } from "@/lib/eras";
 import { CATALOG, type CatalogEntry } from "@/sets/catalog";
 
-function headline(s: SetSummary, b: BoosterSummary): string {
-  const v = verdictFor(b.ratio, s.releasedAt);
+/** A booster's value and return at the reader's settings. */
+interface At {
+  evBox: number;
+  ret: number | null;
+}
+
+function headline(s: SetSummary, at: At): string {
+  const v = verdictFor(at.ret, s.releasedAt);
   if (v === "early") return `${s.name}: too early to call`;
   if (v === "crack") return `${s.name} boxes are worth opening`;
   if (v === "keep") return `Keep ${s.name} sealed`;
   return `${s.name} is a coin flip`;
 }
 
-function LeadStory({ s, b }: { s: SetSummary; b: BoosterSummary }) {
+function LeadStory({ s, b, at, settings }: { s: SetSummary; b: BoosterSummary; at: At; settings: Settings }) {
   const released = isReleased(s.releasedAt);
   const price = b.boxPrice.usd;
   return (
@@ -31,10 +39,11 @@ function LeadStory({ s, b }: { s: SetSummary; b: BoosterSummary }) {
         <p className="kicker text-body">
           {released ? "Newest set" : `Out ${date(s.releasedAt)}`} · {b.name} display
         </p>
-        <h1 className="display mt-4 text-[clamp(46px,7vw,92px)] leading-[0.92]">{headline(s, b)}</h1>
+        <h1 className="display mt-4 text-[clamp(46px,7vw,92px)] leading-[0.92]">{headline(s, at)}</h1>
         <p className="mt-6 max-w-2xl font-serif text-[19px] leading-[1.55] text-ink-soft sm:text-[21px]">
           A {b.packsPerBox}-pack box costs about {money(price)}. On this morning&rsquo;s prices the cards inside average{" "}
-          {money(b.evBox)} {settingsPhrase(s.params)}, so every dollar spent buys {money(price ? b.evBox / price : null)} of cards.
+          {money(at.evBox)} {settingsPhrase(toParams(settings))}, so every dollar spent buys {money(price ? at.evBox / price : null)} of
+          cards.
           {!released &&
             " The set isn’t out yet, and preorder singles prices rest on a handful of early sales. They nearly always fall after launch, so treat this as a ceiling."}
         </p>
@@ -42,8 +51,8 @@ function LeadStory({ s, b }: { s: SetSummary; b: BoosterSummary }) {
         <dl className="mt-10 grid grid-cols-3 border-t border-ink">
           {[
             ["Box price", money(price)],
-            ["Expected value", money(b.evBox)],
-            ["Price ÷ value", ratio(b.ratio)],
+            ["Expected value", money(at.evBox)],
+            ["Return", signedPercent(at.ret)],
           ].map(([label, value]) => (
             <div key={label} className="border-r border-hairline pt-3 pr-3 last:border-r-0 [&:not(:first-child)]:pl-4">
               <dt className="text-[12px] font-bold sm:text-[13px]">{label}</dt>
@@ -83,7 +92,8 @@ function LeadStory({ s, b }: { s: SetSummary; b: BoosterSummary }) {
   );
 }
 
-type SortKey = "release" | "ratio" | "ev" | "price";
+/** Newest first by default; the Set heading sorts A to Z. */
+type SortKey = "release" | "name" | "return" | "ev" | "price";
 
 /** Which box the board compares: each set's main booster, or its Set or Collector Boosters. */
 type BoardView = "main" | "set" | "collector";
@@ -102,21 +112,25 @@ interface Row {
   entry: CatalogEntry;
   s: SetSummary | null;
   b: BoosterSummary | null;
+  at: At | null;
   type: BoosterType;
   href: string;
 }
 
-/** The board's rows for a view and a stretch of years: sets that sold that booster, newest first. */
-function boardRows(sets: SetSummary[], view: BoardView, era: Era | null): Row[] {
+/** The board's rows: sets that sold the chosen booster, in the chosen years, matching the search. */
+function boardRows(sets: SetSummary[], view: BoardView, era: Era | null, search: string, settings: Settings): Row[] {
   const byCode = new Map(sets.map((s) => [s.code, s]));
+  const needle = search.trim().toLowerCase();
   return CATALOG.flatMap((entry) => {
     if (era && (entry.releasedAt < era.from || entry.releasedAt > era.to)) return [];
+    if (needle && !entry.name.toLowerCase().includes(needle) && entry.code !== needle) return [];
     const main = entry.boosters[0].type;
     const type = view === "main" ? main : view;
     if (!entry.boosters.some((b) => b.type === type)) return [];
     const s = byCode.get(entry.code) ?? null;
     const b = s?.boosters.find((x) => x.type === type) ?? null;
-    return [{ entry, s, b, type, href: `/sets/${entry.code}${type === main ? "" : `/${type}`}` }];
+    const at = s && b ? boosterAt(b, s, settings) : null;
+    return [{ entry, s, b, at, type, href: `/sets/${entry.code}${type === main ? "" : `/${type}`}` }];
   });
 }
 
@@ -124,14 +138,15 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
   const [sort, setSort] = useState<SortKey>("release");
   const [, navigate] = useLocation();
   const rows = useMemo(() => {
+    if (sort === "release") return all;
+    if (sort === "name") return [...all].sort((a, b) => a.entry.name.localeCompare(b.entry.name));
     const key = (r: Row) => {
-      if (!r.b) return -Infinity;
-      if (sort === "ratio") return -(r.b.ratio ?? Infinity);
-      if (sort === "ev") return r.b.evBox;
-      if (sort === "price") return r.b.boxPrice.usd ?? 0;
-      return 0;
+      if (!r.b || !r.at) return -Infinity;
+      if (sort === "return") return r.at.ret ?? -Infinity;
+      if (sort === "ev") return r.at.evBox;
+      return r.b.boxPrice.usd ?? -Infinity;
     };
-    return sort === "release" ? all : [...all].sort((a, b) => key(b) - key(a));
+    return [...all].sort((a, b) => key(b) - key(a));
   }, [all, sort]);
   // Newest first, a heading for each year; other sorts are one flat list.
   const groups = useMemo(() => {
@@ -145,9 +160,15 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
     return out;
   }, [rows, sort]);
 
-  const th = (k: SortKey, label: string, cls = "") => (
-    <th scope="col" className={cn("py-2 font-semibold", cls)} aria-sort={sort === k ? "descending" : "none"}>
-      <button type="button" onClick={() => setSort(k)} className={cn("hover:text-ink", sort === k && "text-ink underline underline-offset-4")}>
+  const th = (k: SortKey, label: string, cls = "", title?: string) => (
+    <th scope="col" className={cn("py-2 font-semibold", cls)} aria-sort={sort === k ? (k === "name" ? "ascending" : "descending") : "none"}>
+      <button
+        type="button"
+        // Set flips between A to Z and newest first: on a phone the Released column is hidden.
+        onClick={() => setSort(k === "name" && sort === "name" ? "release" : k)}
+        title={title}
+        className={cn("hover:text-ink", sort === k && "text-ink underline underline-offset-4")}
+      >
         {label}
       </button>
     </th>
@@ -156,16 +177,20 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
   return (
     <div className="relative overflow-x-auto">
       <table className="w-full border-collapse text-left md:min-w-[820px]">
-        <caption className="sr-only">Every tracked set: box price, expected value, and price-to-value ratio</caption>
+        <caption className="sr-only">Every tracked set: box price, expected value, and the return on the box price</caption>
         <thead>
           <tr className="border-b border-ink text-[12px] text-body">
-            {th("release", "Set", "pr-4")}
-            <th scope="col" className="hidden py-2 pr-4 font-semibold lg:table-cell">Released</th>
-            {th("price", "Box", "hidden pr-4 text-right md:table-cell")}
-            {th("ev", "Expected value", "hidden pr-6 text-right whitespace-nowrap md:table-cell")}
-            {th("ratio", "Price ÷ value", "w-[36%] pr-4 md:w-[22%] md:pr-6")}
-            <th scope="col" className="hidden py-2 pr-4 font-semibold sm:table-cell">Verdict</th>
-            <th scope="col" className="hidden py-2 font-semibold lg:table-cell">Top card</th>
+            {th("name", "Set", "pr-4", "Sort by set name, A to Z; again for newest first")}
+            {th("release", "Released", "hidden pr-4 lg:table-cell", "Sort newest first")}
+            {th("price", "Box", "hidden pr-4 text-right md:table-cell", "Sort by box price, highest first")}
+            {th("ev", "Expected value", "hidden pr-6 text-right whitespace-nowrap md:table-cell", "Sort by expected value, highest first")}
+            {th("return", "Return", "w-[36%] pr-4 md:w-[22%] md:pr-6", "Sort by return, best first")}
+            <th scope="col" className="hidden py-2 pr-4 font-semibold sm:table-cell">
+              Verdict
+            </th>
+            <th scope="col" className="hidden py-2 font-semibold lg:table-cell">
+              Top card
+            </th>
           </tr>
         </thead>
         {groups.map(([year, group]) => (
@@ -178,8 +203,8 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
                 </th>
               </tr>
             )}
-            {group.map(({ entry, s, b, href }) => {
-              const v = verdictFor(b?.ratio ?? null, s?.releasedAt);
+            {group.map(({ entry, s, b, at, href }) => {
+              const v = verdictFor(at?.ret ?? null, s?.releasedAt);
               return (
                 <tr key={entry.code} className="group cursor-pointer border-b border-hairline hover:bg-canvas-soft" onClick={() => navigate(href)}>
                   <th scope="row" className="py-3.5 pr-4 font-normal">
@@ -210,12 +235,12 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
                     )}
                   </td>
                   <td className="num hidden py-3.5 pr-6 text-right text-[15px] font-semibold whitespace-nowrap md:table-cell">
-                    {b ? money(b.evBox) : "—"}
+                    {at ? money(at.evBox) : "—"}
                   </td>
                   <td className="py-3.5 pr-4 md:pr-6">
                     <div className="flex items-center gap-3">
-                      <span className="num w-12 shrink-0 text-[15px] font-semibold">{ratio(b?.ratio)}</span>
-                      <RatioMeter value={b?.ratio ?? null} />
+                      <span className="num w-14 shrink-0 text-right text-[15px] font-semibold">{signedPercent(at?.ret)}</span>
+                      <ReturnMeter value={at?.ret ?? null} />
                     </div>
                   </td>
                   <td className="hidden py-3.5 pr-4 text-[14px] font-semibold sm:table-cell">
@@ -240,21 +265,21 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
   );
 }
 
-function HowToRead() {
+function HowToRead({ settings }: { settings: Settings }) {
   return (
     <div className="grid gap-8 border-t border-hairline pt-8 md:grid-cols-3">
       {[
         [
           "Expected value",
-          "Add up every card you could open, each weighted by how often it turns up, at today’s TCGplayer market price less 8% selling fees. It’s what an average box is worth — not what yours will be.",
+          `Add up every card you could open, each weighted by how often it turns up, at today’s TCGplayer market price, ${settingsPhrase(toParams(settings))}. It’s what an average box is worth — not what yours will be.`,
         ],
         [
-          "Price ÷ value",
-          "The box price divided by expected value. Below 1.00× the cards are worth more than the box; above it you’re paying a premium for the thrill. Blue left of centre, red right of it.",
+          "Return",
+          "What the cards are worth compared with what the box costs. +35% means $135 of cards for every $100 spent; −12% means $88. Blue to the right of the line is a gain, red to the left a loss.",
         ],
         [
           "Crack or keep",
-          "Within 5% of 1.00× we call it a toss-up. Otherwise, crack a box whose cards are worth more than it costs, and leave the rest sealed — or don’t buy them at all.",
+          "Within 5% either way we call it a toss-up. Otherwise, crack a box whose cards are worth more than it costs, and leave the rest sealed — or don’t buy them at all.",
         ],
       ].map(([title, body]) => (
         <div key={title}>
@@ -272,11 +297,14 @@ function isView(v: string | null): v is BoardView {
 
 export function HomePage() {
   const { status, index } = useSnapshotIndex();
+  const [settings] = useSettings();
   const [, navigate] = useLocation();
   const query = new URLSearchParams(useSearch());
   const requested = query.get("booster");
   const view: BoardView = isView(requested) ? requested : "main";
   const era = ERAS.find((e) => e.value === query.get("years")) ?? null;
+  const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   // Board settings live in the address, so a filtered board can be shared.
   const setBoard = (patch: { booster?: BoardView; years?: string }) => {
     const next = new URLSearchParams(window.location.search);
@@ -293,20 +321,20 @@ export function HomePage() {
     document.title = "Crack or Keep — What a Magic booster box is worth once you open it";
   }, []);
 
-  const sets = index?.sets ?? [];
+  const sets = useMemo(() => index?.sets ?? [], [index]);
   const lead = sets.find((s) => (s.boosters[0]?.evBox ?? 0) > 0) ?? null;
-  const rows = useMemo(() => boardRows(sets, view, era), [sets, view, era]);
+  const rows = useMemo(() => boardRows(sets, view, era, deferredSearch, settings), [sets, view, era, deferredSearch, settings]);
   // Preorder prices would win this every time; only count sets that are out.
   const best = rows
-    .filter((r): r is Row & { s: SetSummary; b: BoosterSummary & { ratio: number } } => r.b?.ratio != null && isReleased(r.s!.releasedAt))
-    .sort((a, b) => a.b.ratio - b.b.ratio)[0];
+    .filter((r): r is Row & { s: SetSummary; at: At & { ret: number } } => r.at?.ret != null && isReleased(r.s!.releasedAt))
+    .sort((a, b) => b.at.ret - a.at.ret)[0];
 
   return (
     <>
       <Masthead />
       <main className="mx-auto max-w-page px-4 sm:px-6">
         {lead ? (
-          <LeadStory s={lead} b={lead.boosters[0]} />
+          <LeadStory s={lead} b={lead.boosters[0]} at={boosterAt(lead.boosters[0], lead, settings)} settings={settings} />
         ) : (
           status === "ready" && (
             <div className="border-b-2 border-rule py-12">
@@ -357,25 +385,41 @@ export function HomePage() {
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap justify-between gap-x-10 gap-y-2 pt-3 pb-1 text-[14px] text-body">
-            <p className="max-w-xl">{VIEWS.find((v) => v.value === view)!.note}</p>
+          <div className="grid gap-x-10 gap-y-3 pt-4 pb-1 text-[14px] text-body md:grid-cols-[minmax(0,260px)_minmax(0,1fr)_minmax(0,320px)] md:items-start">
+            <label className="flex h-10 items-center gap-2 border border-ink bg-canvas px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-link">
+              <svg viewBox="0 0 16 16" className="size-3.5 shrink-0 text-body" aria-hidden="true">
+                <circle cx="6.5" cy="6.5" r="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M10.5 10.5 15 15" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Find a set by name or code"
+                aria-label="Find a set by name or code"
+                className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-muted"
+              />
+            </label>
+            <p>{VIEWS.find((v) => v.value === view)!.note}</p>
             {best && (
-              <p className="max-w-sm">
-                Best value right now: <strong className="text-ink">{best.s.name}</strong>, at {ratio(best.b.ratio)} —{" "}
-                {percent(1 / best.b.ratio)} of the box price back in cards.
+              <p>
+                Best return right now: <strong className="text-ink">{best.s.name}</strong>, {signedPercent(best.at.ret)}:{" "}
+                {money(best.at.evBox)} of cards for a {money(best.b?.boxPrice.usd)} box.
               </p>
             )}
           </div>
           <Board rows={rows} view={view} />
-          {rows.length === 0 && <p className="py-10 text-[15px] text-body">No sets sold that booster in those years.</p>}
+          {rows.length === 0 && (
+            <p className="py-10 text-[15px] text-body">{search ? `No set matches “${search}”.` : "No sets sold that booster in those years."}</p>
+          )}
           <p className="mt-3 text-[12px] text-body">
-            Expected value is after 8% selling fees per card; open a set to change that or to ignore bulk. Click a column heading to
-            sort. * Estimated street price: TCGplayer had no market price for the box.
+            Values use your settings: {settingsPhrase(toParams(settings))}. Change them under Settings at the top of any page. Click
+            a column heading to sort. * Estimated street price: TCGplayer had no market price for the box.
           </p>
         </section>
 
         <section className="mt-16" aria-label="How to read the board">
-          <HowToRead />
+          <HowToRead settings={settings} />
         </section>
       </main>
     </>

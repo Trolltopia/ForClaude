@@ -3,21 +3,22 @@ import { Segmented } from "@/components/ui/segmented";
 import { Slider } from "@/components/ui/slider";
 import { InfoTip } from "@/components/ui/tooltip";
 import { date, money } from "@/lib/format";
+import { MAX_FEES, snapFloor } from "@/lib/settings";
 import type { BoxPrice } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** Bulk-floor presets in dollars; any other amount goes in the custom box. */
 export const FLOOR_PRESETS = [0, 0.1, 0.25, 0.5, 1, 2] as const;
-const floorLabel = (v: number) => (v === 0 ? "Nothing" : v < 1 ? `${Math.round(v * 100)}¢` : `$${v}`);
+export const floorLabel = (v: number) => (v === 0 ? "Nothing" : v < 1 ? `${Math.round(v * 100)}¢` : `$${v}`);
 
-function FloorInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+export function FloorInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const custom = !FLOOR_PRESETS.includes(value as (typeof FLOOR_PRESETS)[number]);
   const [text, setText] = useState(custom ? String(value) : "");
   useEffect(() => setText(custom ? String(value) : ""), [value, custom]);
   const commit = () => {
     const n = Number(text.replace(/[$¢\s]/g, ""));
     if (text.trim() === "") return;
-    if (Number.isFinite(n) && n >= 0) onChange(Math.min(1000, Math.round(n * 100) / 100));
+    if (Number.isFinite(n) && n >= 0) onChange(snapFloor(n));
   };
   return (
     <label
@@ -104,6 +105,7 @@ export function Controls({
   defaultFees: number;
 }) {
   const changed = overridden || floor !== 0 || fees !== defaultFees;
+  // Custom minimums snap to the steps the whole site can compute exactly.
   const preset = FLOOR_PRESETS.find((f) => f === floor);
   return (
     <div className="border-y border-ink bg-canvas lg:sticky lg:top-0 lg:z-30">
@@ -151,7 +153,8 @@ export function Controls({
             Ignore cards under
             <InfoTip>
               Bulk commons and uncommons are hard to sell one at a time. Anything priced below this counts as zero — a truer
-              picture of what you can actually turn into cash. Pick a preset or type any amount.
+              picture of what you can actually turn into cash. Pick a preset or type an amount (it rounds to the nearest 5¢
+              up to $2). This applies on every page, and your browser remembers it.
             </InfoTip>
           </div>
           <div className="flex items-center gap-2">
@@ -172,7 +175,8 @@ export function Controls({
               <InfoTip>
                 Marketplace and payment fees come off every card you sell. {defaultFees}% is the default; set 0% to see raw market
                 value, or raise it to cover postage. Selling cards on to a store, at the price stores pay for singles (their
-                &ldquo;buylist&rdquo;), usually returns about half to two thirds of market value: 35–50% models that.
+                &ldquo;buylist&rdquo;), usually returns about half to two thirds of market value: 35–50% models that. This applies
+                on every page, and your browser remembers it.
               </InfoTip>
             </span>
             <span className="font-semibold">
@@ -180,7 +184,7 @@ export function Controls({
             </span>
           </div>
           <div className="flex h-11 items-center gap-4">
-            <Slider aria-label="Selling fees in percent" min={0} max={50} step={1} value={[fees]} onValueChange={([v]) => onFees(v)} />
+            <Slider aria-label="Selling fees in percent" min={0} max={MAX_FEES} step={1} value={[fees]} onValueChange={([v]) => onFees(v)} />
             {changed && (
               <button type="button" onClick={onReset} className="kicker shrink-0 text-body hover:text-ink">
                 Reset

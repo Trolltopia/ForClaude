@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { InfoTip } from "@/components/ui/tooltip";
 import type { SimulationSummary } from "@/lib/engine/simulate";
-import { chance, money, ratio } from "@/lib/format";
+import { chance, money, signedPercent } from "@/lib/format";
+import { returnOf } from "@/lib/verdict";
 import { cn } from "@/lib/utils";
 
 function Tile({
@@ -49,7 +50,7 @@ export function KpiRow({
   /** Preorder prices: show the gap to the box without calling it good or bad. */
   provisional?: boolean;
 }) {
-  const r = boxPrice && evBox > 0 ? boxPrice / evBox : null;
+  const ret = returnOf(boxPrice, evBox);
   const diff = boxPrice ? evBox - boxPrice : null;
   return (
     <div className="grid grid-cols-1 divide-hairline border-b border-hairline sm:grid-cols-2 sm:divide-x lg:grid-cols-4">
@@ -74,10 +75,10 @@ export function KpiRow({
         }
       />
       <Tile
-        label="Price ÷ value"
-        info="Box price divided by expected value. 1.00× is break-even; 1.25× means paying $125 for every $100 of cards; 0.90× means paying $90."
-        value={ratio(r)}
-        foot={r != null ? (r <= 1 ? `${money(1 / r)} of cards for every $1 spent` : `${money(r)} spent for every $1 of cards`) : "Enter a box price"}
+        label="Return"
+        info="What the cards are worth compared with what the box costs, on average. +35% means $135 of cards for every $100 spent; −12% means $88. Zero is break-even."
+        value={<span className={provisional ? "" : ret == null ? "" : ret >= 0 ? "text-good" : "text-bad"}>{signedPercent(ret)}</span>}
+        foot={ret != null ? `${money(1 + ret)} of cards for every $1 spent` : "Enter a box price"}
       />
       <Tile
         label="Boxes that beat the price"

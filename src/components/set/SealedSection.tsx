@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { InfoTip } from "@/components/ui/tooltip";
 import { boosterOfKind } from "@/lib/boosters";
-import { money, ratio } from "@/lib/format";
+import { money, signedPercent } from "@/lib/format";
 import type { BoosterType, SealedKind, SealedProduct } from "@/lib/types";
+import { returnOf } from "@/lib/verdict";
 import { cn } from "@/lib/utils";
 
 function Thumb({ src, alt }: { src: string | null; alt: string }) {
@@ -72,7 +73,7 @@ export function SealedSection({
     const type = p.booster ?? boosterOfKind(p.kind) ?? (p.packs ? "play" : null);
     const priced = boosters.find((b) => b.type === type);
     const perPack = p.packs && p.market != null ? p.market / p.packs : null;
-    const r = perPack != null && priced && priced.evPack > 0 ? perPack / priced.evPack : null;
+    const r = perPack != null && priced ? returnOf(perPack, priced.evPack) : null;
     // What this product implies for a full box of that booster, e.g. thirty loose packs.
     const asBox = perPack != null && priced ? perPack * priced.packsPerBox : null;
     const active = type === current && asBox != null && boxPrice != null && Math.abs(asBox - boxPrice) < 0.005;
@@ -102,7 +103,9 @@ export function SealedSection({
             </span>
           )}
         </td>
-        <td className="num hidden py-2 pl-4 text-right md:table-cell">{r != null ? ratio(r) : <span className="text-muted">—</span>}</td>
+        <td className={cn("num hidden py-2 pl-4 text-right md:table-cell", r != null && (r >= 0 ? "text-good" : "text-bad"))}>
+          {r != null ? signedPercent(r) : <span className="text-muted">—</span>}
+        </td>
         <td className="py-2 pl-4 text-right whitespace-nowrap">
           {asBox != null &&
             type &&
@@ -141,10 +144,10 @@ export function SealedSection({
               </th>
               <th scope="col" className="hidden py-2 pl-4 text-right font-semibold whitespace-nowrap md:table-cell">
                 <span className="inline-flex items-center gap-1.5">
-                  Price ÷ value
+                  Return
                   <InfoTip>
-                    Price per booster divided by the value of an average booster of the same kind at your settings. Under 1.00× the
-                    packs are worth more than they cost.
+                    What the cards in an average booster of that kind are worth, at your settings, compared with the price per
+                    booster. Positive means the packs are worth more than they cost.
                   </InfoTip>
                 </span>
               </th>

@@ -17,16 +17,16 @@ import { useSnapshot } from "@/hooks/useSnapshot";
 import { useQueryNumbers } from "@/hooks/useQueryState";
 import { SIM_BOXES, useSimulation } from "@/hooks/useSimulation";
 import { boosterName, boosterView, byBoosterOrder } from "@/lib/boosters";
-import { computeEv, DEFAULT_FEES, type EvParams } from "@/lib/engine/ev";
+import { computeEv, type EvParams } from "@/lib/engine/ev";
 import { chance, count, isReleased, money, percent } from "@/lib/format";
+import { DEFAULT_SETTINGS, toParams, useSettings } from "@/lib/settings";
 import type { BoosterType } from "@/lib/types";
 import { catalogEntry } from "@/sets/catalog";
 
-const QUERY_KEYS = ["box", "floor", "fees"] as const;
-/** Up to half: enough for a store that sells in bulk to other stores rather than card by card. */
-const MAX_FEES = 50;
+// Only the box price lives in the address: minimum card price and fees are site-wide settings.
+const QUERY_KEYS = ["box"] as const;
 
-/** /sets/fdn for the main booster, /sets/fdn/collector for the others; floor and fees carry over, a box price doesn't. */
+/** /sets/fdn for the main booster, /sets/fdn/collector for the others; a box price doesn't carry over. */
 function boosterHref(code: string, type: BoosterType, main: BoosterType | undefined, search: string, box: number | null = null) {
   const params = new URLSearchParams(search);
   params.delete("box");
@@ -42,10 +42,8 @@ export function SetPage({ code, booster: requested }: { code: string; booster?: 
   const [, navigate] = useLocation();
   const search = useSearch();
 
-  const defaultFees = Math.round(DEFAULT_FEES * 100);
-  const floor = Math.max(0, Math.min(1000, query.floor ?? 0));
-  const fees = Math.max(0, Math.min(MAX_FEES, query.fees ?? defaultFees));
-  const params = useMemo<EvParams>(() => ({ floor, fees: fees / 100 }), [floor, fees]);
+  const [settings, updateSettings] = useSettings();
+  const params = useMemo<EvParams>(() => toParams(settings), [settings]);
 
   const main = set?.boosters[0]?.type;
   const current = set?.boosters.find((b) => b.type === requested) ?? set?.boosters[0] ?? null;
@@ -128,12 +126,15 @@ export function SetPage({ code, booster: requested }: { code: string; booster?: 
               marketPrice={marketPrice}
               overridden={query.box != null}
               onBoxPrice={(v) => setQuery({ box: v })}
-              floor={floor}
-              onFloor={(v) => setQuery({ floor: v === 0 ? null : v })}
-              fees={fees}
-              onFees={(v) => setQuery({ fees: v === defaultFees ? null : v })}
-              defaultFees={defaultFees}
-              onReset={() => setQuery({ box: null, floor: null, fees: null })}
+              floor={settings.floor}
+              onFloor={(v) => updateSettings({ floor: v })}
+              fees={settings.fees}
+              onFees={(v) => updateSettings({ fees: v })}
+              defaultFees={DEFAULT_SETTINGS.fees}
+              onReset={() => {
+                setQuery({ box: null });
+                updateSettings(DEFAULT_SETTINGS);
+              }}
             />
             <KpiRow
               evBox={ev.evBox}

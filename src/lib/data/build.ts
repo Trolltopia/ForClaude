@@ -1,5 +1,6 @@
 import { boosterName, boosterView, byBoosterOrder } from "../boosters";
-import { computeEv, DEFAULT_PARAMS, mostValuable } from "../engine/ev";
+import { computeEv, DEFAULT_PARAMS, grossByFloor, mostValuable } from "../engine/ev";
+import { FLOOR_STEPS } from "../settings";
 import type { BoosterProduct, BoosterSummary, BoxPrice, CardRecord, SetSnapshot, SetSummary, Snapshot, Source } from "../types";
 import type { BoosterSpec, CatalogEntry } from "@/sets/catalog";
 import { boosterConfig, buildModelFromMtgjson, remapModel, type MtgjsonSetFile } from "./mtgjson";
@@ -241,6 +242,7 @@ export function summarise(set: SetSnapshot): SetSummary {
 
 function summariseBooster(snapshot: Snapshot): BoosterSummary {
   const ev = computeEv(snapshot, DEFAULT_PARAMS);
+  const gross = grossByFloor(snapshot, FLOOR_STEPS).map((v) => round2(v));
   const top = mostValuable(snapshot);
   const price = snapshot.boxPrice.usd;
   return {
@@ -262,6 +264,7 @@ function summariseBooster(snapshot: Snapshot): BoosterSummary {
         }
       : null,
     modelSource: snapshot.modelSource.kind,
+    gross,
   };
 }
 

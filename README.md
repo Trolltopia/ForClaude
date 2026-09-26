@@ -13,13 +13,15 @@ Fracture (FRA)**.
 
 - **A booster switch**: Play Boosters (2024 on) or Draft and Set Boosters (2020–2023), and
   Collector Boosters, each at its own address (`/sets/woe`, `/sets/woe/set`,
-  `/sets/woe/collector`) with its price ÷ value on the tab.
-- **Verdict and headline numbers**: expected value per box and pack, price ÷ value, the
-  share of boxes that beat the price, and the median box.
-- **Your numbers**: type your own box price, ignore cards under a floor (presets from 10¢
-  to $2, or any amount), and take selling fees off every card (8% by default; the card
-  table shows what you keep per card). Settings live in the URL, so a configured page can
-  be shared.
+  `/sets/woe/collector`) with its return on the tab.
+- **Verdict and headline numbers**: expected value per box and pack, the return (+35% means
+  $135 of cards for every $100 spent), the share of boxes that beat the price, and the
+  median box.
+- **Your numbers**: type your own box price (kept in the link, so it can be shared), ignore
+  cards under a minimum price (presets from 10¢ to $2, or any amount in 5¢ steps), and take
+  selling fees off every card (8% by default, up to 50%). The minimum price and fees are
+  site-wide settings: change them on any set page or under Settings in the masthead, and
+  every number on the site follows; the browser remembers them.
 - **Sealed product**: every sealed item TCGplayer lists for the set (packs, displays,
   cases, bundles, Commander decks) with market and lowest-listing prices. Anything with a
   known number of boosters inside is priced per booster against an average booster of the
@@ -35,8 +37,9 @@ Fracture (FRA)**.
 - **Every card**: searchable, sortable, with odds per pack and per box.
 - **Collation**: the odds of every slot, sources and caveats.
 
-The front page is a board of every tracked set, sortable by price ÷ value and filterable by
-years, comparing each set's main booster box, its Set Boosters or its Collector Boosters.
+The front page is a board of every tracked set, sortable by name or return, searchable, and
+filterable by years, comparing each set's main booster box, its Set Boosters or its
+Collector Boosters.
 
 ## Where the data comes from
 

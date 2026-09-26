@@ -27,7 +27,7 @@ const TOC: [string, string][] = [
   ["boosters", "Play, Draft, Set and Collector"],
   ["sheets", "Slots, sheets and odds"],
   ["prices", "Where the prices come from"],
-  ["ratio", "Price ÷ value, and the verdict"],
+  ["return", "The return, and the verdict"],
   ["realism", "Bulk floors and selling costs"],
   ["simulation", "Why simulate at all"],
   ["bulk", "One box or a hundred"],
@@ -142,19 +142,20 @@ value of a box  = packs per box × value of a pack`}
               pack that affects. Before release, prices are preorders: thin, jumpy, and usually higher than where they settle.
             </P>
 
-            <H id="ratio">Price ÷ value, and the verdict</H>
+            <H id="return">The return, and the verdict</H>
             <P>
-              Divide the box price by the expected value. At 1.00× you pay exactly what the contents are worth on average. At 1.25×
-              you pay $125 for every $100 of cards; at 0.90×, $90. We call anything within 5% of even a toss-up, anything cheaper
-              a <strong className="font-semibold">crack</strong>, and anything dearer a{" "}
+              The return compares what the cards are worth with what the box costs. +35% means an average box holds $135 of cards
+              for every $100 you pay; −12% means $88. Zero is break-even. We call anything within 5% either way a toss-up,
+              anything better a <strong className="font-semibold">crack</strong>, and anything worse a{" "}
               <strong className="font-semibold">keep</strong> — as in, keep it sealed, or keep your money.
             </P>
 
             <H id="realism">Bulk floors and selling costs</H>
             <P>
               Market value assumes you can sell every card at its market price. You can&rsquo;t. Nobody buys a nine-cent common by
-              itself, and every sale pays fees and postage. Two controls on each set page bring the number closer to what you&rsquo;d
-              pocket:
+              itself, and every sale pays fees and postage. Two settings bring the number closer to what you&rsquo;d pocket. They
+              live under Settings at the top of every page and in the bar on each set page, apply to every number on the site, and
+              your browser remembers them:
             </P>
             <ul className="mt-5 list-disc space-y-3 pl-6 font-serif text-[19px] leading-[1.6] text-ink-soft marker:text-muted">
               <li>

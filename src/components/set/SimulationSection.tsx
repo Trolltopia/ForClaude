@@ -30,7 +30,11 @@ function Legend() {
 }
 
 function Percentiles({ sim, boxPrice }: { sim: SimulationSummary; boxPrice: number | null }) {
+  // Every pack has its rare slot, so even the worst box is far from worthless; how far it
+  // falls short of the price is what the top rows show.
   const rows: [string, string, boolean?][] = [
+    [`Worst of all ${count(sim.boxes)}`, money(sim.min)],
+    ["Worst box in a hundred", money(sim.percentiles.p1)],
     ["Worst box in ten", money(sim.percentiles.p10)],
     ["Worst box in four", money(sim.percentiles.p25)],
     ["Typical box (median)", money(sim.percentiles.p50), true],
@@ -38,6 +42,7 @@ function Percentiles({ sim, boxPrice }: { sim: SimulationSummary; boxPrice: numb
     ["Best box in four", money(sim.percentiles.p75)],
     ["Best box in ten", money(sim.percentiles.p90)],
     ["Best box in a hundred", money(sim.percentiles.p99)],
+    [`Best of all ${count(sim.boxes)}`, money(sim.max)],
   ];
   return (
     <table className="w-full border-collapse text-[14px]">

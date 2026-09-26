@@ -15,9 +15,9 @@ export function Footer() {
           </p>
         </div>
         <div>
-          <h2 className="kicker mb-4 text-[#9a9a9a]">Sets</h2>
+          <h2 className="kicker mb-4 text-[#9a9a9a]">Newest sets</h2>
           <ul className="columns-2 gap-x-6 text-[14px] sm:columns-3">
-            {CATALOG.map((s) => (
+            {CATALOG.slice(0, 24).map((s) => (
               <li key={s.code} className="mb-1.5 break-inside-avoid">
                 <Link href={`/sets/${s.code}`} className="hover-rule">
                   {s.name}
@@ -25,6 +25,9 @@ export function Footer() {
               </li>
             ))}
           </ul>
+          <Link href="/" className="hover-rule mt-3 inline-block text-[14px] font-semibold">
+            All {CATALOG.length} sets on the board →
+          </Link>
         </div>
         <div>
           <h2 className="kicker mb-4 text-[#9a9a9a]">About</h2>

@@ -22,6 +22,14 @@ export function percent(n: number | null | undefined, digits = 0): string {
   return `${v.toFixed(digits)}%`;
 }
 
+/** A return as a signed percentage: "+35%", "−12%" (a true minus sign), or "0%". */
+export function signedPercent(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  const v = Math.round(n * 100);
+  if (v === 0) return "0%";
+  return `${v > 0 ? "+" : "−"}${Math.abs(v)}%`;
+}
+
 /** A share of simulated boxes: never quite "never" or "always", since it's an estimate. */
 export function chance(p: number | null | undefined): string {
   if (p == null || !Number.isFinite(p)) return "—";
@@ -29,11 +37,6 @@ export function chance(p: number | null | undefined): string {
   if (p < 0.0005) return "under 0.1%";
   if (p > 0.9995) return "over 99.9%";
   return percent(p, p < 0.01 || p > 0.99 ? 1 : 0);
-}
-
-export function ratio(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return "—";
-  return `${n.toFixed(2)}×`;
 }
 
 export function count(n: number): string {

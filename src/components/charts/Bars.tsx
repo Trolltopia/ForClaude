@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { money, ratio } from "@/lib/format";
+import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** A single horizontal bar inside a table cell. The number beside it carries the value. */
@@ -16,27 +16,27 @@ export function ShareBar({ value, max, className }: { value: number; max: number
  * Price-to-value on a scale centred at 1.00×. Left of centre (blue) the cards are worth
  * more than the box; right of centre (red) the box costs more than its cards.
  */
-export function RatioMeter({ value, domain = [0.5, 1.5] }: { value: number | null; domain?: [number, number] }) {
+/**
+ * Where a return sits either side of break-even: gains run right in blue, losses left in
+ * red, clamped at ±50% so one outlier doesn't flatten the rest.
+ */
+export function ReturnMeter({ value, span = 0.5 }: { value: number | null; span?: number }) {
   if (value == null) return <div className="h-3 w-full" aria-hidden="true" />;
-  const [lo, hi] = domain;
-  const clamped = Math.max(lo, Math.min(hi, value));
-  const pos = ((clamped - lo) / (hi - lo)) * 100;
-  const left = Math.min(pos, 50);
-  const width = Math.abs(pos - 50);
-  const crack = value <= 1;
+  const clamped = Math.max(-span, Math.min(span, value));
+  const pos = 50 + (clamped / span) * 50;
+  const gain = value >= 0;
   return (
     <div className="relative h-3 w-full" aria-hidden="true">
       <div className="absolute inset-x-0 top-1/2 h-px bg-hairline" />
       <div className="absolute top-0 left-1/2 h-full w-px bg-ink" />
       <div
-        className={cn("absolute top-1/2 h-[3px] -translate-y-1/2", crack ? "bg-accent" : "bg-keep")}
-        style={{ left: `${left}%`, width: `${width}%` }}
+        className={cn("absolute top-1/2 h-[3px] -translate-y-1/2", gain ? "bg-accent" : "bg-keep")}
+        style={{ left: `${Math.min(pos, 50)}%`, width: `${Math.abs(pos - 50)}%` }}
       />
       <div
-        className={cn("absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-canvas", crack ? "bg-accent" : "bg-keep")}
+        className={cn("absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-canvas", gain ? "bg-accent" : "bg-keep")}
         style={{ left: `${pos}%` }}
       />
-      <span className="sr-only">{ratio(value)}</span>
     </div>
   );
 }

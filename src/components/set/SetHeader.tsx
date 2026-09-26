@@ -3,7 +3,7 @@ import type { EvParams } from "@/lib/engine/ev";
 import { date, isReleased, money } from "@/lib/format";
 import type { Snapshot } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { settingsPhrase, VERDICT_TITLE, verdictFor, verdictLine } from "@/lib/verdict";
+import { returnOf, settingsPhrase, VERDICT_TITLE, verdictFor, verdictLine } from "@/lib/verdict";
 
 export function SetHeader({
   snapshot,
@@ -17,8 +17,7 @@ export function SetHeader({
   params: EvParams;
 }) {
   const released = isReleased(snapshot.releasedAt);
-  const r = boxPrice && evBox > 0 ? boxPrice / evBox : null;
-  const verdict = verdictFor(r, snapshot.releasedAt);
+  const verdict = verdictFor(returnOf(boxPrice, evBox), snapshot.releasedAt);
   const cards = snapshot.product.cardsPerPack;
 
   return (
