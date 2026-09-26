@@ -135,12 +135,15 @@ export function sealedBoosters(set: MtgjsonSetFile["data"]): SealedBoosters {
   const displays: SealedBoosters["displays"] = {};
   const boxIds: SealedBoosters["boxIds"] = {};
   const byTcgplayerId = new Map<number, { booster: BoosterType; packs: number }>();
-  // The smallest box of each booster is its display; master cases are sometimes filed as boxes.
+  // A booster's display is the box filed under that booster (not a premium or special box
+  // that happens to hold the same packs), and the smallest of those: master cases are
+  // sometimes filed as boxes too.
   const boxes = products
     .filter((p) => p.category === "booster_box")
     .map((p) => ({ p, c: count(p), id: Number(p.identifiers?.tcgplayerProductId) || null }))
     .filter((b) => b.c)
-    .sort((a, b) => a.c!.packs - b.c!.packs || Number(b.id != null) - Number(a.id != null));
+    .map((b) => ({ ...b, filed: TYPE_OF_KEY[b.p.subtype ?? ""] === b.c!.booster }))
+    .sort((a, b) => Number(b.filed) - Number(a.filed) || a.c!.packs - b.c!.packs || Number(b.id != null) - Number(a.id != null));
   for (const { c, id } of boxes) {
     if (displays[c!.booster] == null) {
       displays[c!.booster] = c!.packs;

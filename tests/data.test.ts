@@ -254,6 +254,21 @@ describe("MTGJSON sealed products", () => {
     expect(n.has(601)).toBe(false);
   });
 
+  it("prefers the box filed under a booster to a premium box holding the same packs", () => {
+    const grn = {
+      code: "GRN",
+      name: "Guilds of Ravnica",
+      cards: [],
+      sealedProduct: [
+        { ...pack("g-pack", "draft", "grn", "1") },
+        { ...holds("g-box", "Guilds of Ravnica Booster Box", "booster_box", [["g-pack", 36]], "2"), subtype: "draft" },
+        { ...holds("g-premium", "Guilds of Ravnica Mythic Edition", "booster_box", [["g-pack", 24]], "3"), subtype: "premium" },
+      ],
+    };
+    expect(sealedBoosters(grn).displays).toEqual({ draft: 36 });
+    expect(sealedBoosters(grn).boxIds).toEqual({ draft: 2 });
+  });
+
   it("treats an old set's default booster as its draft booster", () => {
     const arn = {
       code: "ARN",
