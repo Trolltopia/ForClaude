@@ -13,12 +13,15 @@ import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { BOOSTER_NAME, boosterView, upgradeIndex } from "../src/lib/boosters";
 import { buildSetSnapshot, summarise } from "../src/lib/data/build";
+import { buildFixedProducts, fixedKindOf, type DeckListEntry } from "../src/lib/data/decks";
 import { sealedBoosters, type MtgjsonSetFile } from "../src/lib/data/mtgjson";
 import { createScryfallClient } from "../src/lib/data/scryfall";
-import { fetchSealed, type Displays } from "../src/lib/data/tcgcsv";
+import { fetchSealed, TCGCSV, type Displays, type TcgPrice, type TcgProduct } from "../src/lib/data/tcgcsv";
+import { FIXED_NAME, FIXED_PATH, fixedValue, summariseFixed } from "../src/lib/fixed";
+import { DEFAULT_SETTINGS } from "../src/lib/settings";
 import { computeEv, DEFAULT_PARAMS, MARKET_PARAMS } from "../src/lib/engine/ev";
 import { compileModel, simulateBoxValues, summarise as summariseSimulation } from "../src/lib/engine/simulate";
-import type { SetSnapshot, SetSummary, Snapshot, SnapshotIndex } from "../src/lib/types";
+import type { FixedIndex, FixedKind, SetSnapshot, SetSummary, Snapshot, SnapshotIndex } from "../src/lib/types";
 import { CATALOG, type CatalogEntry } from "../src/sets/catalog";
 
 const OUT = join(import.meta.dirname, "..", "public", "data");
@@ -42,10 +45,27 @@ async function downloadMtgjson(code: string): Promise<MtgjsonSetFile | null> {
   }
 }
 
+// Parsed set files run to tens of megabytes each; keep only the few most recently used.
+// (The List is used by every Set Booster, so it tends to stay.)
+const MTGJSON_KEEP = 8;
+
 function mtgjson(code: string): Promise<MtgjsonSetFile | null> {
-  const key = code.toUpperCase();
-  if (!mtgjsonCache.has(key)) mtgjsonCache.set(key, downloadMtgjson(key));
-  return mtgjsonCache.get(key)!;
+  const key = fileCode(code);
+  const hit = mtgjsonCache.get(key);
+  if (hit) {
+    mtgjsonCache.delete(key);
+    mtgjsonCache.set(key, hit);
+    return hit;
+  }
+  const loading = downloadMtgjson(key);
+  mtgjsonCache.set(key, loading);
+  while (mtgjsonCache.size > MTGJSON_KEEP) mtgjsonCache.delete(mtgjsonCache.keys().next().value!);
+  return loading;
+}
+
+// Windows can't name a file CON, so MTGJSON publishes Conflux as CON_.
+function fileCode(code: string): string {
+  return code.toUpperCase() === "CON" ? "CON_" : code.toUpperCase();
 }
 
 // TCGCSV's group list is the same for every set; fetch it once per run.
@@ -146,12 +166,87 @@ function reportSet(snapshot: SetSnapshot) {
   for (const n of [...snapshot.notes, ...snapshot.boosters.flatMap((b) => b.notes.map((x) => `${b.name}: ${x}`))]) console.log(`    note: ${n}`);
 }
 
+/** A TCGplayer group's products and prices, through the cached fetch. */
+async function tcgGroup(groupId: number): Promise<{ products: TcgProduct[]; prices: TcgPrice[] }> {
+  const get = async <T>(url: string) => {
+    const res = await tcgFetch(url);
+    if (!res.ok) throw new Error(`TCGCSV ${res.status} for ${url}`);
+    return ((await res.json()) as { results?: T[] }).results ?? [];
+  };
+  const [products, prices] = await Promise.all([
+    get<TcgProduct>(`${TCGCSV}/1/${groupId}/products`),
+    get<TcgPrice>(`${TCGCSV}/1/${groupId}/prices`),
+  ]);
+  return { products, prices };
+}
+
+/** Price every Commander precon or Secret Lair drop MTGJSON lists, and write them with their index. */
+async function buildFixed(kind: FixedKind, verbose: boolean): Promise<number> {
+  const started = Date.now();
+  const res = await fetch("https://mtgjson.com/api/v5/DeckList.json", { headers });
+  if (!res.ok) throw new Error(`MTGJSON DeckList ${res.status}`);
+  const entries = ((await res.json()) as { data: DeckListEntry[] }).data.filter((e) => fixedKindOf(e.type) === kind);
+  console.log(`${FIXED_NAME[kind].many}: ${entries.length} lists in MTGJSON`);
+  const products = await buildFixedProducts(entries, { client: scryfall, mtgjson, tcgGroup, log: (l) => console.log(l) });
+
+  const dir = join(OUT, FIXED_PATH[kind]);
+  await mkdir(dir, { recursive: true });
+  for (const p of products) await writeFile(join(dir, `${p.id}.json`), JSON.stringify(p));
+  const index: FixedIndex = {
+    version: 1,
+    kind,
+    generatedAt: new Date().toISOString(),
+    products: products.map(summariseFixed).sort((a, b) => b.releasedAt.localeCompare(a.releasedAt) || a.name.localeCompare(b.name)),
+  };
+  await writeFile(join(OUT, `${FIXED_PATH[kind]}.json`), JSON.stringify(index));
+  const priced = index.products.filter((p) => p.price.usd != null).length;
+  console.log(`  wrote ${products.length} ${FIXED_NAME[kind].many}, ${priced} with a TCGplayer price, in ${((Date.now() - started) / 1000).toFixed(0)}s`);
+
+  if (verbose) {
+    const usd = (n: number | null) => (n == null ? "—" : `$${n.toFixed(2)}`);
+    const rows = index.products
+      .filter((p) => p.price.usd != null)
+      .map((p) => ({ p, value: fixedValue(p.values, DEFAULT_SETTINGS) }))
+      .map((r) => ({ ...r, ret: r.value / r.p.price.usd! - 1 }))
+      .sort((a, b) => b.ret - a.ret);
+    const line = (r: (typeof rows)[number]) =>
+      `    ${r.p.releasedAt} ${r.p.setCode.padEnd(5)} ${r.p.name.slice(0, 44).padEnd(44)} price ${usd(r.p.price.usd).padStart(9)}  cards ${usd(r.value).padStart(9)}  ${(r.ret * 100).toFixed(0).padStart(5)}%  ${r.p.cardCount} cards, ${(r.p.pricedShare * 100).toFixed(0)}% priced`;
+    console.log("  best returns after 8% fees:");
+    for (const r of rows.slice(0, 8)) console.log(line(r));
+    console.log("  worst returns after 8% fees:");
+    for (const r of rows.slice(-5)) console.log(line(r));
+    const newest = index.products.slice(0, 6);
+    console.log("  newest:");
+    for (const p of newest) console.log(`    ${p.releasedAt} ${p.setCode} ${p.name} · ${p.cardCount} cards · price ${usd(p.price.usd)} · top ${p.topCard?.name ?? "—"} ${usd(p.topCard?.price ?? null)}`);
+  }
+  return products.length;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const verbose = args.includes("--report");
+  const wantDecks = args.includes("--decks");
+  const wantLairs = args.includes("--secret-lair");
   const wanted = args.filter((a) => !a.startsWith("--")).map((s) => s.toLowerCase());
-  const entries = wanted.length ? CATALOG.filter((e) => wanted.includes(e.code)) : CATALOG;
+  // No set codes and no product flags: build everything, as the daily job does.
+  const everything = !wanted.length && !wantDecks && !wantLairs;
+  const entries = wanted.length ? CATALOG.filter((e) => wanted.includes(e.code)) : everything ? CATALOG : [];
   await mkdir(OUT, { recursive: true });
+
+  let fixedFailures = 0;
+  for (const kind of ["commander", "secret-lair"] as FixedKind[]) {
+    if (!everything && !(kind === "commander" ? wantDecks : wantLairs)) continue;
+    try {
+      await buildFixed(kind, verbose);
+    } catch (err) {
+      fixedFailures++;
+      console.warn(`${FIXED_NAME[kind].many} failed: ${(err as Error).message}`);
+    }
+  }
+  if (!entries.length) {
+    if (fixedFailures) process.exit(1);
+    return;
+  }
 
   // Keep summaries for sets we don't rebuild this run, so a partial run doesn't empty the board.
   let previous: SetSummary[] = [];

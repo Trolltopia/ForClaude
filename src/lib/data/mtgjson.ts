@@ -47,6 +47,27 @@ export interface MtgjsonSealedProduct {
   identifiers?: { tcgplayerProductId?: string };
 }
 
+/** A card in a deck list: which printing, how many, and in which finish. */
+export interface MtgjsonDeckRef {
+  count: number;
+  uuid: string;
+  isFoil?: boolean;
+  isEtched?: boolean;
+}
+
+/** A preconstructed product's list as a set file carries it: a Commander deck or a Secret Lair drop. */
+export interface MtgjsonDeck {
+  code: string;
+  name: string;
+  type: string;
+  releaseDate?: string;
+  commander?: MtgjsonDeckRef[];
+  mainBoard?: MtgjsonDeckRef[];
+  sideBoard?: MtgjsonDeckRef[];
+  sealedProductUuids?: string[] | null;
+  sourceSetCodes?: string[];
+}
+
 export interface MtgjsonSetFile {
   data: {
     code: string;
@@ -55,6 +76,8 @@ export interface MtgjsonSetFile {
     baseSetSize?: number;
     booster?: Record<string, MtgjsonBoosterConfig>;
     sealedProduct?: MtgjsonSealedProduct[];
+    decks?: MtgjsonDeck[];
+    tcgplayerGroupId?: number;
     cards: MtgjsonCard[];
     tokens?: MtgjsonCard[];
   };

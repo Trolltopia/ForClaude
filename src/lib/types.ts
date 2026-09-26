@@ -227,3 +227,72 @@ export interface SnapshotIndex {
   generatedAt: string;
   sets: SetSummary[];
 }
+
+/** Products with fixed contents, valued as the sum of their cards: Commander precons and Secret Lair drops. */
+export type FixedKind = "commander" | "secret-lair";
+
+export type CardFinish = "nonfoil" | "foil" | "etched";
+
+/** A card in a fixed product, with the finish and number of copies the product holds. */
+export interface FixedCard {
+  /** Scryfall card id. */
+  id: string;
+  name: string;
+  set: string;
+  cn: string;
+  rarity: Rarity;
+  treatmentLabel: string;
+  finish: CardFinish;
+  count: number;
+  /** TCGplayer market price for this finish, or null without sales. */
+  price: number | null;
+  image: string | null;
+  scryfallUri: string | null;
+  /** The deck's commander. */
+  commander?: boolean;
+}
+
+/** data/decks/<id>.json and data/secret-lair/<id>.json. */
+export interface FixedProduct {
+  version: 1;
+  id: string;
+  kind: FixedKind;
+  name: string;
+  /** MTGJSON set code the product belongs to, e.g. "FDC" or "SLD". */
+  setCode: string;
+  setName: string;
+  releasedAt: string;
+  /** TCGplayer market price of the sealed product. */
+  price: BoxPrice;
+  tcgplayerId: number | null;
+  cards: FixedCard[];
+  generatedAt: string;
+  notes: string[];
+}
+
+/** One row of data/decks.json or data/secret-lair.json. */
+export interface FixedSummary {
+  id: string;
+  kind: FixedKind;
+  name: string;
+  setCode: string;
+  setName: string;
+  releasedAt: string;
+  price: BoxPrice;
+  /** TCGplayer product id of the sealed product, for linking from a set's sealed list. */
+  tcgplayerId: number | null;
+  /** [price, copies] for every priced card, so value follows anyone's settings exactly. */
+  values: [number, number][];
+  cardCount: number;
+  /** Share of cards (by copies) that have a price. */
+  pricedShare: number;
+  topCard: { name: string; price: number; finish: CardFinish; image: string | null } | null;
+  commanders: string[];
+}
+
+export interface FixedIndex {
+  version: 1;
+  kind: FixedKind;
+  generatedAt: string;
+  products: FixedSummary[];
+}
