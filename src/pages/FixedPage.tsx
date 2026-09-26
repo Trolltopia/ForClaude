@@ -9,12 +9,12 @@ import { Masthead } from "@/components/site/Masthead";
 import { HoverCard } from "@/components/ui/hover-card";
 import { InfoTip } from "@/components/ui/tooltip";
 import { useFixedProduct } from "@/hooks/useFixed";
-import { cardValue, FIXED_NAME, FIXED_PATH, fixedVerdict } from "@/lib/fixed";
+import { cardValue, FIXED_NAME, FIXED_PATH, fixedReturn, fixedVerdict } from "@/lib/fixed";
 import { count, date, isReleased, money, percent, signedPercent } from "@/lib/format";
 import { toParams, useSettings } from "@/lib/settings";
 import type { CardFinish, FixedCard, FixedKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { fixedVerdictLine, returnOf, settingsPhrase, VERDICT_TITLE } from "@/lib/verdict";
+import { fixedVerdictLine, settingsPhrase, VERDICT_TITLE } from "@/lib/verdict";
 
 const FINISH_LABEL: Record<CardFinish, string | null> = { nonfoil: null, foil: "Foil", etched: "Etched foil" };
 
@@ -186,12 +186,13 @@ export function FixedPage({ kind, id }: { kind: FixedKind; id: string }) {
 
   const value = rows.reduce((s, r) => s + r.total, 0);
   const price = product.price.usd;
-  const ret = returnOf(price, value);
   const released = isReleased(product.releasedAt);
   const copies = rows.reduce((s, r) => s + r.c.count, 0);
   // Cards without a market price count as nothing, which makes the value a floor.
   const unpriced = rows.filter((r) => r.c.price == null).reduce((s, r) => s + r.c.count, 0);
-  const verdict = fixedVerdict(ret, copies ? 1 - unpriced / copies : 0, product.releasedAt);
+  const pricedShare = copies ? 1 - unpriced / copies : 0;
+  const ret = fixedReturn(price, value, pricedShare);
+  const verdict = fixedVerdict(ret, pricedShare, product.releasedAt);
   const commanders = product.cards.filter((c) => c.commander).map((c) => c.name);
   const topFive = rows.slice(0, 5).reduce((s, r) => s + r.total, 0);
   const cheap = rows.filter((r) => r.c.price == null || r.c.price < 1).reduce((s, r) => s + r.c.count, 0);
@@ -213,7 +214,12 @@ export function FixedPage({ kind, id }: { kind: FixedKind; id: string }) {
             </p>
             <h1 className="display mt-3 text-[clamp(44px,7.4vw,100px)] leading-[0.92]">{product.name}</h1>
             <p className="mt-6 max-w-2xl font-serif text-[19px] leading-[1.5] text-ink-soft sm:text-[21px]">
-              {price != null ? (
+              {copies === 0 ? (
+                <>
+                  We couldn&rsquo;t match this {noun}&rsquo;s cards to Scryfall, so there&rsquo;s nothing to price yet
+                  {price != null && <>. The sealed {noun} sells for about {money(price)} on TCGplayer</>}.
+                </>
+              ) : price != null ? (
                 <>
                   The sealed {noun} sells for about <strong className="font-semibold">{money(price)}</strong> on TCGplayer. Its{" "}
                   {count(copies)} cards are worth <strong className="font-semibold">{money(value)}</strong> on today&rsquo;s prices, {phrase}.
@@ -259,7 +265,10 @@ export function FixedPage({ kind, id }: { kind: FixedKind; id: string }) {
             info={`Every card at its TCGplayer market price in the finish the ${noun} holds it, times the copies, ${phrase}.`}
             value={money(value)}
             foot={
-              diff != null ? (
+              // With cards unpriced the value is a floor: a shortfall means nothing yet.
+              unpriced > 0 && (diff == null || diff < 0) ? (
+                `At least this: ${count(unpriced)} card${unpriced === 1 ? " has" : "s have"} no price yet`
+              ) : diff != null ? (
                 <span className={released ? (diff >= 0 ? "text-good" : "text-bad") : ""}>
                   {diff >= 0 ? "▲" : "▼"} {money(Math.abs(diff))} {diff >= 0 ? "more" : "less"} than sealed
                 </span>
@@ -286,7 +295,7 @@ export function FixedPage({ kind, id }: { kind: FixedKind; id: string }) {
             label="Return"
             info="What the cards are worth compared with the sealed price. +35% means $135 of cards for every $100 spent; −12% means $88. Zero is break-even."
             value={<span className={!released || ret == null ? "" : ret >= 0 ? "text-good" : "text-bad"}>{signedPercent(ret)}</span>}
-            foot={ret != null ? <ReturnMeter value={ret} /> : "Needs a sealed price"}
+            foot={ret != null ? <ReturnMeter value={ret} /> : price == null ? "Needs a sealed price" : "Too few cards have a price"}
           />
           {copies > 10 ? (
             <Tile

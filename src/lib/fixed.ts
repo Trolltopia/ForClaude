@@ -1,5 +1,5 @@
 import type { Settings } from "./settings";
-import { verdictFor, type Verdict } from "./verdict";
+import { returnOf, verdictFor, type Verdict } from "./verdict";
 import type { CardFinish, CardRecord, FixedKind, FixedProduct, FixedSummary } from "./types";
 
 /** Where each kind lives: /decks and data/decks.json, /secret-lair and data/secret-lair.json. */
@@ -67,6 +67,11 @@ export const PRICED_ENOUGH = 0.95;
 
 export function isComplete(pricedShare: number): boolean {
   return pricedShare >= PRICED_ENOUGH;
+}
+
+/** The return on the sealed price, or null when too few cards have a price to say anything. */
+export function fixedReturn(price: number | null, value: number, pricedShare: number): number | null {
+  return pricedShare >= 0.5 ? returnOf(price, value) : null;
 }
 
 /**

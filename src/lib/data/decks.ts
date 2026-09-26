@@ -160,7 +160,8 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
             const out = new Map<number, { normal: number | null; foil: number | null }>();
             for (const p of prices) {
               const row = out.get(p.productId) ?? { normal: null, foil: null };
-              const usd = p.marketPrice ?? p.midPrice ?? null;
+              // Sales only: before release the middle listing is a preorder asking price.
+              const usd = p.marketPrice ?? null;
               if (p.subTypeName === "Foil") row.foil = usd;
               else if (!p.subTypeName || p.subTypeName === "Normal") row.normal = usd;
               out.set(p.productId, row);

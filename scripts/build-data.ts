@@ -17,7 +17,7 @@ import { buildFixedProducts, fixedKindOf, type DeckListEntry } from "../src/lib/
 import { sealedBoosters, type MtgjsonSetFile } from "../src/lib/data/mtgjson";
 import { createScryfallClient } from "../src/lib/data/scryfall";
 import { fetchSealed, TCGCSV, type Displays, type TcgPrice, type TcgProduct } from "../src/lib/data/tcgcsv";
-import { FIXED_NAME, FIXED_PATH, fixedValue, summariseFixed } from "../src/lib/fixed";
+import { FIXED_NAME, FIXED_PATH, fixedReturn, fixedValue, isComplete, PRICED_ENOUGH, summariseFixed } from "../src/lib/fixed";
 import { DEFAULT_SETTINGS } from "../src/lib/settings";
 import { computeEv, DEFAULT_PARAMS, MARKET_PARAMS } from "../src/lib/engine/ev";
 import { compileModel, simulateBoxValues, summarise as summariseSimulation } from "../src/lib/engine/simulate";
@@ -205,10 +205,12 @@ async function buildFixed(kind: FixedKind, verbose: boolean): Promise<number> {
   if (verbose) {
     const usd = (n: number | null) => (n == null ? "—" : `$${n.toFixed(2)}`);
     const rows = index.products
-      .filter((p) => p.price.usd != null)
       .map((p) => ({ p, value: fixedValue(p.values, DEFAULT_SETTINGS) }))
-      .map((r) => ({ ...r, ret: r.value / r.p.price.usd! - 1 }))
+      .map((r) => ({ ...r, ret: fixedReturn(r.p.price.usd, r.value, r.p.pricedShare) }))
+      .filter((r): r is typeof r & { ret: number } => r.ret != null)
       .sort((a, b) => b.ret - a.ret);
+    const partial = index.products.filter((p) => !isComplete(p.pricedShare));
+    console.log(`  ${partial.length} with under ${PRICED_ENOUGH * 100}% of their cards priced: ${partial.slice(0, 8).map((p) => `${p.name} (${Math.round(p.pricedShare * 100)}%)`).join(", ")}`);
     const line = (r: (typeof rows)[number]) =>
       `    ${r.p.releasedAt} ${r.p.setCode.padEnd(5)} ${r.p.name.slice(0, 44).padEnd(44)} price ${usd(r.p.price.usd).padStart(9)}  cards ${usd(r.value).padStart(9)}  ${(r.ret * 100).toFixed(0).padStart(5)}%  ${r.p.cardCount} cards, ${(r.p.pricedShare * 100).toFixed(0)}% priced`;
     console.log("  best returns after 8% fees:");

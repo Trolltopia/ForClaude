@@ -3,12 +3,12 @@ import { Link, useLocation } from "wouter";
 import { ReturnMeter } from "@/components/charts/Bars";
 import { Masthead } from "@/components/site/Masthead";
 import { useFixedIndex } from "@/hooks/useFixed";
-import { FIXED_NAME, FIXED_PATH, fixedValue, fixedVerdict, isComplete } from "@/lib/fixed";
+import { FIXED_NAME, FIXED_PATH, fixedReturn, fixedValue, fixedVerdict, isComplete } from "@/lib/fixed";
 import { count, isReleased, money, monthYear, signedPercent } from "@/lib/format";
 import { toParams, useSettings, type Settings } from "@/lib/settings";
 import type { FixedKind, FixedSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { returnOf, settingsPhrase, VERDICT_TITLE, verdictFor, type Verdict } from "@/lib/verdict";
+import { settingsPhrase, VERDICT_TITLE, verdictFor, type Verdict } from "@/lib/verdict";
 
 /** Newest first by default; Commander decks sit under a heading for their set. */
 type SortKey = "release" | "set" | "name" | "price" | "value" | "return";
@@ -54,7 +54,7 @@ function rowsFor(products: FixedSummary[], kind: FixedKind, settings: Settings, 
     )
     .map((p) => {
       const value = fixedValue(p.values, settings);
-      return { p, value, ret: returnOf(p.price.usd, value), href: `/${FIXED_PATH[kind]}/${p.id}` };
+      return { p, value, ret: fixedReturn(p.price.usd, value, p.pricedShare), href: `/${FIXED_PATH[kind]}/${p.id}` };
     });
 }
 
