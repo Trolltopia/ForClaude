@@ -160,6 +160,20 @@ describe("simulation", () => {
   });
 });
 
+describe("chance wording", () => {
+  it("never rounds a simulated share to always or never", async () => {
+    const { chance } = await import("../src/lib/format");
+    expect(chance(0)).toBe("under 0.1%");
+    expect(chance(0.0004)).toBe("under 0.1%");
+    expect(chance(0.004)).toBe("0.4%");
+    expect(chance(0.45)).toBe("45%");
+    expect(chance(0.995)).toBe("99.5%");
+    expect(chance(0.9999)).toBe("over 99.9%");
+    expect(chance(1)).toBe("over 99.9%");
+    expect(chance(null)).toBe("—");
+  });
+});
+
 describe("runs of several boxes", () => {
   // A coin-flip box: worth $0 or $100. Its average is $50 and its standard deviation $50,
   // so the average of 100 boxes has a standard deviation of $5.

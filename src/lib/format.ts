@@ -25,8 +25,9 @@ export function percent(n: number | null | undefined, digits = 0): string {
 /** A share of simulated boxes: never quite "never" or "always", since it's an estimate. */
 export function chance(p: number | null | undefined): string {
   if (p == null || !Number.isFinite(p)) return "—";
-  if (p <= 0) return "under 0.1%";
-  if (p >= 1) return "over 99.9%";
+  // Anything that would round to 0.0% or 100.0% is said as a bound instead.
+  if (p < 0.0005) return "under 0.1%";
+  if (p > 0.9995) return "over 99.9%";
   return percent(p, p < 0.01 || p > 0.99 ? 1 : 0);
 }
 
