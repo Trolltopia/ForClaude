@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { boosterView } from "../src/lib/boosters";
 import { computeEv } from "../src/lib/engine/ev";
 import { buildSetSnapshot, summarise } from "../src/lib/data/build";
-import { boosterConfig, buildModelFromMtgjson, sheetLabel, type MtgjsonBoosterConfig, type MtgjsonSetFile } from "../src/lib/data/mtgjson";
+import {
+  boosterConfig,
+  buildModelFromMtgjson,
+  sealedBoosters,
+  sheetLabel,
+  type MtgjsonBoosterConfig,
+  type MtgjsonSetFile,
+} from "../src/lib/data/mtgjson";
 import { buildModelFromRules, rulesQueries, type RulesConfig } from "../src/lib/data/rules";
 import { collectorNumber, createScryfallClient, normaliseCard, type ScryfallCard } from "../src/lib/data/scryfall";
 import { findBoxProduct, findGroup } from "../src/lib/data/tcgcsv";
@@ -188,6 +195,79 @@ describe("MTGJSON", () => {
   });
 });
 
+describe("MTGJSON sealed products", () => {
+  // Shaped like MTGJSON's records for a Play Booster set with a box topper.
+  const pack = (uuid: string, code: string, set = "tst", tcg?: string) => ({
+    uuid,
+    name: `${code} pack`,
+    category: "booster_pack",
+    contents: { pack: [{ code, set }] },
+    identifiers: tcg ? { tcgplayerProductId: tcg } : {},
+  });
+  const holds = (uuid: string, name: string, category: string, items: [string, number][], tcg?: string) => ({
+    uuid,
+    name,
+    category,
+    contents: { sealed: items.map(([u, count]) => ({ uuid: u, count, set: "tst" })) },
+    identifiers: tcg ? { tcgplayerProductId: tcg } : {},
+  });
+  const set = {
+    code: "TST",
+    name: "Test",
+    cards: [],
+    sealedProduct: [
+      pack("p-play", "play", "tst", "101"),
+      pack("p-col", "collector", "tst", "102"),
+      pack("p-top", "box-topper"),
+      pack("p-sample", "collector-sample"),
+      holds("box-play", "Play Booster Box", "booster_box", [["p-play", 30], ["p-top", 1]], "201"),
+      holds("box-col", "Collector Booster Box", "booster_box", [["p-col", 12]], "202"),
+      holds("master", "Collector Booster Box Master Case", "booster_box", [["box-col", 24]], "203"),
+      holds("case-play", "Play Booster Box Case", "booster_case", [["box-play", 6]], "301"),
+      holds("bundle", "Bundle", "bundle", [["p-play", 9], ["p-sample", 1]], "401"),
+      holds("gift", "Gift Bundle", "bundle", [["p-play", 9], ["p-col", 1]], "402"),
+      { uuid: "mystery", name: "Mystery", category: "booster_pack", contents: { variable: [{}] }, identifiers: { tcgplayerProductId: "501" } },
+      pack("p-other", "play", "zzz", "601"),
+    ],
+  };
+
+  it("reads display sizes and TCGplayer ids from the boxes' contents", () => {
+    const { displays, boxIds } = sealedBoosters(set);
+    expect(displays).toEqual({ play: 30, collector: 12 });
+    expect(boxIds).toEqual({ play: 201, collector: 202 });
+  });
+
+  it("counts boosters through bundles and cases, ignoring toppers and samples", () => {
+    const { byTcgplayerId: n } = sealedBoosters(set);
+    expect(n.get(101)).toEqual({ booster: "play", packs: 1 });
+    expect(n.get(201)).toEqual({ booster: "play", packs: 30 });
+    expect(n.get(301)).toEqual({ booster: "play", packs: 180 });
+    expect(n.get(401)).toEqual({ booster: "play", packs: 9 });
+    expect(n.get(203)).toEqual({ booster: "collector", packs: 288 });
+  });
+
+  it("gives no count to mixed, random or other-set products", () => {
+    const { byTcgplayerId: n } = sealedBoosters(set);
+    expect(n.has(402)).toBe(false);
+    expect(n.has(501)).toBe(false);
+    expect(n.has(601)).toBe(false);
+  });
+
+  it("treats an old set's default booster as its draft booster", () => {
+    const arn = {
+      code: "ARN",
+      name: "Arabian Nights",
+      cards: [],
+      sealedProduct: [
+        { ...pack("a-pack", "default", "arn", "27327") },
+        { ...holds("a-box", "Arabian Nights Booster Box", "booster_box", [["a-pack", 60]], "27265") },
+      ],
+    };
+    expect(sealedBoosters(arn).displays).toEqual({ draft: 60 });
+    expect(sealedBoosters(arn).boxIds).toEqual({ draft: 27265 });
+  });
+});
+
 describe("TCGCSV matching", () => {
   it("finds the main group by code", () => {
     const g = findGroup(
@@ -258,6 +338,7 @@ const ENTRY: CatalogEntry = {
   code: "tst",
   name: "Test",
   releasedAt: "2026-01-01",
+  setType: "expansion",
   boosters: [{ type: "play", packsPerBox: 30, estimate: 100, rules: RULES }],
 };
 

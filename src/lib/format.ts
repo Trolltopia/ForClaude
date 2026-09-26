@@ -40,9 +40,12 @@ export function oneIn(perPack: number, unit = "packs"): string {
   return `1 in ${int.format(rounded)} ${unit}`;
 }
 
-const dateFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+// Month names in full: "September 26, 2026", not "Sep 26".
+const dateFmt = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
 const longDate = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-const timeFmt = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
+// Timestamps in the reader's own time zone, so they need no zone label.
+const localDay = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric" });
+const localTime = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
 
 export function date(iso: string): string {
   const d = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
@@ -53,11 +56,11 @@ export function today(): string {
   return longDate.format(new Date());
 }
 
-/** "Sep 25, 06:10 UTC" */
+/** "September 25 at 2:10 am", in the reader's time zone. */
 export function stamp(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return `${dateFmt.format(d).replace(/, \d{4}$/, "")}, ${timeFmt.format(d)} UTC`;
+  return `${localDay.format(d)} at ${localTime.format(d).toLowerCase().replace(/\s/g, " ")}`;
 }
 
 /** Relative time for "prices updated 3 hours ago". */
@@ -75,9 +78,9 @@ export function isReleased(iso: string, now = new Date()): boolean {
   return new Date(`${iso}T00:00:00Z`).getTime() <= now.getTime();
 }
 
-const monthYearFmt = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+const monthYearFmt = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 
-/** "Oct 2026" */
+/** "October 2026" */
 export function monthYear(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
   return Number.isNaN(d.getTime()) ? iso : monthYearFmt.format(d);

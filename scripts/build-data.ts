@@ -13,9 +13,9 @@ import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { BOOSTER_NAME, boosterView, upgradeIndex } from "../src/lib/boosters";
 import { buildSetSnapshot, summarise } from "../src/lib/data/build";
-import type { MtgjsonSetFile } from "../src/lib/data/mtgjson";
+import { sealedBoosters, type MtgjsonSetFile } from "../src/lib/data/mtgjson";
 import { createScryfallClient } from "../src/lib/data/scryfall";
-import { fetchSealed } from "../src/lib/data/tcgcsv";
+import { fetchSealed, type Displays } from "../src/lib/data/tcgcsv";
 import { computeEv, DEFAULT_PARAMS, MARKET_PARAMS } from "../src/lib/engine/ev";
 import type { SetSnapshot, SetSummary, Snapshot, SnapshotIndex } from "../src/lib/types";
 import { CATALOG, type CatalogEntry } from "../src/sets/catalog";
@@ -24,7 +24,8 @@ const OUT = join(import.meta.dirname, "..", "public", "data");
 const USER_AGENT = "CrackOrKeep/0.1 (+https://github.com/Trolltopia/ForClaude)";
 const headers = { "User-Agent": USER_AGENT, Accept: "application/json" };
 
-const scryfall = createScryfallClient({ delayMs: 550, headers });
+// Scryfall asks for 50–100 ms between requests; stay a little above that.
+const scryfall = createScryfallClient({ delayMs: 120, headers });
 const mtgjsonCache = new Map<string, Promise<MtgjsonSetFile | null>>();
 
 // Set files run to tens of megabytes; the gzipped copies are a tenth of that.
@@ -60,13 +61,25 @@ function tcgFetch(url: string, init?: RequestInit): Promise<Response> {
 
 async function buildSet(entry: CatalogEntry): Promise<SetSnapshot> {
   const snapshot = await buildSetSnapshot(entry, { client: scryfall, mtgjson });
-  const available = Object.keys((await mtgjson(entry.code))?.data.booster ?? {});
+  const file = await mtgjson(entry.code);
+  const available = Object.keys(file?.data.booster ?? {});
   if (available.length) console.log(`  MTGJSON boosters: ${available.join(", ")}`);
 
+  // What's in each display, from MTGJSON's sealed records where it has them.
+  const known = file ? sealedBoosters(file.data) : undefined;
+  const displays: Displays = {};
+  for (const spec of entry.boosters) {
+    const recorded = known?.displays[spec.type];
+    if (recorded != null && recorded !== spec.packsPerBox) {
+      console.warn(`  ${spec.type} display: MTGJSON records ${recorded} packs, the catalog says ${spec.packsPerBox}; using ${recorded}`);
+    }
+    displays[spec.type] = recorded ?? spec.packsPerBox;
+  }
+  for (const booster of snapshot.boosters) booster.packsPerBox = displays[booster.type] ?? booster.packsPerBox;
+
   try {
-    const displays = Object.fromEntries(entry.boosters.map((b) => [b.type, b.packsPerBox]));
     const { boxes, products } = await fetchSealed(
-      { code: entry.code, name: snapshot.name, releasedAt: snapshot.releasedAt, displays },
+      { code: entry.code, name: snapshot.name, releasedAt: snapshot.releasedAt, displays, known },
       tcgFetch,
     );
     snapshot.sealed = products;

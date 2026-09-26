@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { BOOSTER_SHORT } from "@/lib/boosters";
+import { shortBoosterName } from "@/lib/boosters";
 import { money, ratio } from "@/lib/format";
 import type { BoosterType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,7 @@ export function BoosterTabs({ tabs, current, provisional }: { tabs: BoosterTab[]
           return (
             <span key={t.type} aria-disabled="true" className="block min-w-0 flex-1 px-3 py-2.5 text-muted sm:w-60 sm:flex-none sm:px-4">
               <span className="block truncate font-sans text-[15px] font-bold">
-                <span className="sm:hidden">{BOOSTER_SHORT[t.type]}</span>
+                <span className="sm:hidden">{shortBoosterName(t.name)}</span>
                 <span className="hidden sm:inline">{t.name}</span>
               </span>
               <span className="mt-0.5 block truncate text-[12.5px]">Not priced yet</span>
@@ -39,13 +39,14 @@ export function BoosterTabs({ tabs, current, provisional }: { tabs: BoosterTab[]
             key={t.type}
             href={t.href}
             aria-current={active ? "page" : undefined}
+            title={`${t.name}: a box of ${t.packsPerBox} costs ${money(t.boxPrice)}${r != null ? `, ${ratio(r)} what its cards are worth on average` : ""}`}
             className={cn(
               "block min-w-0 flex-1 px-3 py-2.5 sm:w-60 sm:flex-none sm:px-4",
               active ? "bg-ink text-canvas" : "hover:bg-canvas-soft",
             )}
           >
             <span className="block truncate font-sans text-[15px] font-bold">
-              <span className="sm:hidden">{BOOSTER_SHORT[t.type]}</span>
+              <span className="sm:hidden">{shortBoosterName(t.name)}</span>
               <span className="hidden sm:inline">{t.name}</span>
             </span>
             <span className={cn("num mt-0.5 flex items-center gap-1.5 text-[12.5px]", active ? "opacity-75" : "text-body")}>

@@ -28,6 +28,25 @@ export interface MtgjsonCard {
   identifiers?: { scryfallId?: string };
 }
 
+/** A sealed product as MTGJSON records it: what's inside, and its id on TCGplayer. */
+export interface MtgjsonSealedProduct {
+  uuid: string;
+  name: string;
+  /** "booster_box", "booster_pack", "booster_case", "bundle", … */
+  category?: string;
+  subtype?: string;
+  contents?: {
+    /** Other sealed products inside, by MTGJSON uuid. */
+    sealed?: { count?: number; name?: string; set?: string; uuid?: string }[];
+    /** A booster, by the booster config it's opened from. */
+    pack?: { code: string; set: string }[];
+    /** A random choice between contents. */
+    variable?: unknown[];
+    [other: string]: unknown;
+  };
+  identifiers?: { tcgplayerProductId?: string };
+}
+
 export interface MtgjsonSetFile {
   data: {
     code: string;
@@ -35,6 +54,7 @@ export interface MtgjsonSetFile {
     releaseDate?: string;
     baseSetSize?: number;
     booster?: Record<string, MtgjsonBoosterConfig>;
+    sealedProduct?: MtgjsonSealedProduct[];
     cards: MtgjsonCard[];
     tokens?: MtgjsonCard[];
   };
@@ -54,6 +74,85 @@ export function boosterConfig(set: MtgjsonSetFile["data"], type: BoosterType): {
     if (boosters[name]) return { name, config: boosters[name] };
   }
   return null;
+}
+
+const TYPE_OF_KEY: Record<string, BoosterType> = { play: "play", draft: "draft", default: "draft", set: "set", collector: "collector" };
+
+/** What MTGJSON's sealed records say about a set's boosters. */
+export interface SealedBoosters {
+  /** Packs in a display of each booster, from the display's recorded contents. */
+  displays: Partial<Record<BoosterType, number>>;
+  /** TCGplayer product id of each booster's display. */
+  boxIds: Partial<Record<BoosterType, number>>;
+  /** Boosters inside every product with a TCGplayer id, where they're all one kind. */
+  byTcgplayerId: Map<number, { booster: BoosterType; packs: number }>;
+}
+
+/**
+ * Count the boosters in each of the set's sealed products by following their contents
+ * down to booster packs: a bundle of nine Play Boosters counts nine, a case of six
+ * displays counts six displays' worth. Box toppers, sample packs, lands and dice don't
+ * count. A product that mixes boosters of different kinds, holds another set's boosters
+ * or has random contents gets no count.
+ */
+export function sealedBoosters(set: MtgjsonSetFile["data"]): SealedBoosters {
+  const products = set.sealedProduct ?? [];
+  const byUuid = new Map(products.map((p) => [p.uuid, p]));
+  const code = set.code.toLowerCase();
+  const memo = new Map<string, { booster: BoosterType; packs: number } | null>();
+
+  const count = (p: MtgjsonSealedProduct, depth = 0): { booster: BoosterType; packs: number } | null => {
+    if (memo.has(p.uuid)) return memo.get(p.uuid)!;
+    let booster: BoosterType | null = null;
+    let packs = 0;
+    let ok = depth < 6 && !p.contents?.variable?.length;
+    const add = (type: BoosterType, n: number) => {
+      if (booster && booster !== type) ok = false;
+      booster = type;
+      packs += n;
+    };
+    for (const pack of p.contents?.pack ?? []) {
+      const type = TYPE_OF_KEY[pack.code];
+      if (!type) continue; // box toppers, samples, promos
+      if (pack.set?.toLowerCase() !== code) ok = false;
+      else add(type, 1);
+    }
+    for (const item of p.contents?.sealed ?? []) {
+      const inner = item.uuid ? byUuid.get(item.uuid) : undefined;
+      if (!inner) {
+        // Something from another set or not recorded; if it holds boosters we can't tell.
+        if (item.set && item.set.toLowerCase() !== code) ok = false;
+        continue;
+      }
+      const c = count(inner, depth + 1);
+      if (c) add(c.booster, c.packs * (item.count ?? 1));
+    }
+    const out = ok && booster && packs > 0 ? { booster, packs } : null;
+    memo.set(p.uuid, out);
+    return out;
+  };
+
+  const displays: SealedBoosters["displays"] = {};
+  const boxIds: SealedBoosters["boxIds"] = {};
+  const byTcgplayerId = new Map<number, { booster: BoosterType; packs: number }>();
+  // The smallest box of each booster is its display; master cases are sometimes filed as boxes.
+  const boxes = products
+    .filter((p) => p.category === "booster_box")
+    .map((p) => ({ p, c: count(p), id: Number(p.identifiers?.tcgplayerProductId) || null }))
+    .filter((b) => b.c)
+    .sort((a, b) => a.c!.packs - b.c!.packs || Number(b.id != null) - Number(a.id != null));
+  for (const { c, id } of boxes) {
+    if (displays[c!.booster] == null) {
+      displays[c!.booster] = c!.packs;
+      if (id) boxIds[c!.booster] = id;
+    }
+  }
+  for (const p of products) {
+    const id = Number(p.identifiers?.tcgplayerProductId);
+    const c = count(p);
+    if (id && c) byTcgplayerId.set(id, c);
+  }
+  return { displays, boxIds, byTcgplayerId };
 }
 
 const WORDS: Record<string, string> = {

@@ -61,7 +61,7 @@ export function ChaseGrid({ cards, packs }: { cards: CardStat[]; packs: number }
               />
             </a>
             <div className={cn("mt-3", i === 0 && "mt-0 sm:mt-4")}>
-              <div className="kicker text-body">No. {i + 1}</div>
+              <div className="kicker text-body">{String(i + 1).padStart(2, "0")}</div>
               <div className={cn("mt-1 font-sans font-bold leading-tight", i === 0 ? "text-[22px]" : "text-[15px]")}>{c.card.name}</div>
               <div className="mt-0.5 text-[13px] text-body">{finishLabel(c)}</div>
               <div className={cn("mt-2 font-sans font-semibold tracking-[-0.01em]", i === 0 ? "text-[30px]" : "text-[20px]")}>{money(c.price)}</div>

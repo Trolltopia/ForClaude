@@ -207,11 +207,18 @@ export interface SealedResult {
   products: SealedProduct[];
 }
 
+/** What MTGJSON's sealed records say, by TCGplayer product id (see sealedBoosters). */
+export interface KnownSealed {
+  boxIds: Partial<Record<BoosterType, number>>;
+  byTcgplayerId: Map<number, { booster: BoosterType; packs: number }>;
+}
+
 export interface SealedQuery {
   code: string;
   name: string;
   releasedAt: string;
   displays: Displays;
+  known?: KnownSealed;
 }
 
 /** Before Play Boosters, a plain "Booster Box" on TCGplayer is a Draft Booster display. */
@@ -236,11 +243,11 @@ export async function fetchSealed(query: SealedQuery, fetchImpl: FetchLike = (u,
     Promise.all([get<TcgProduct>(`${TCGCSV}/${MAGIC}/${g.groupId}/products`), get<TcgPrice>(`${TCGCSV}/${MAGIC}/${g.groupId}/prices`)]);
 
   const [products, prices] = await load(group);
-  const result = sealedFrom(products, prices, query.displays);
+  const result = sealedFrom(products, prices, query.displays, query.known);
   for (const companion of findCompanionGroups(groups, group, query.name, query.releasedAt)) {
     try {
       const [cp, cx] = await load(companion);
-      result.products.push(...toSealed(cp, cx, query.displays, /commander/i.test(companion.name)));
+      result.products.push(...toSealed(cp, cx, query.displays, /commander/i.test(companion.name), query.known));
     } catch {
       // A missing companion group shouldn't cost us the main set's prices.
     }
@@ -264,16 +271,39 @@ function bySealedOrder(a: SealedProduct, b: SealedProduct): number {
   return KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || (b.market ?? 0) - (a.market ?? 0) || a.name.localeCompare(b.name);
 }
 
-/** Sealed products in one TCGplayer group. `commander` marks a Commander companion group. */
-export function toSealed(products: TcgProduct[], prices: TcgPrice[], displays: Displays, commander = false): SealedProduct[] {
+/** A booster product's kind from what's inside: one pack, a display's worth, or whole displays. */
+function kindFromCount(c: { booster: BoosterType; packs: number }, displays: Displays): SealedKind | null {
+  const k = BOOSTER_KINDS[c.booster];
+  const display = displays[c.booster];
+  if (c.packs === 1) return k.pack;
+  if (display && c.packs === display) return k.display;
+  if (display && c.packs % display === 0) return k.case;
+  return null;
+}
+
+/**
+ * Sealed products in one TCGplayer group. `commander` marks a Commander companion group.
+ * Booster counts come from MTGJSON's records where it has the product, and from the
+ * listing's name otherwise.
+ */
+export function toSealed(
+  products: TcgProduct[],
+  prices: TcgPrice[],
+  displays: Displays,
+  commander = false,
+  known?: KnownSealed,
+): SealedProduct[] {
   const priceOf = priceIndex(prices);
   const opts = { ...classifyOptions(displays), commander };
   const sealed: SealedProduct[] = [];
   for (const p of products) {
-    const kind = classifySealed(p, opts);
+    const counted = known?.byTcgplayerId.get(p.productId);
+    let kind = classifySealed(p, opts);
+    // A listing whose name we can't read, but whose contents MTGJSON knows.
+    if (counted && (kind == null || kind === "Other")) kind = kindFromCount(counted, displays) ?? kind ?? "Other";
     if (!kind) continue;
     const row = priceOf.get(p.productId);
-    const inside = boostersIn(kind, displays, p.name);
+    const inside = counted ?? boostersIn(kind, displays, p.name);
     sealed.push({
       productId: p.productId,
       name: p.name,
@@ -289,17 +319,24 @@ export function toSealed(products: TcgProduct[], prices: TcgPrice[], displays: D
   return sealed.sort(bySealedOrder);
 }
 
-export function sealedFrom(products: TcgProduct[], prices: TcgPrice[], displays: Displays): SealedResult {
+export function sealedFrom(products: TcgProduct[], prices: TcgPrice[], displays: Displays, known?: KnownSealed): SealedResult {
   const priceOf = priceIndex(prices);
   const asOf = new Date().toISOString();
   const opts = classifyOptions(displays);
   const boxes: SealedResult["boxes"] = {};
   for (const type of BOOSTER_TYPES) {
     if (!displays[type]) continue;
-    const display = findBoxProduct(products, type, opts);
-    const row = display ? priceOf.get(display.productId) : undefined;
-    const usd = row?.marketPrice ?? row?.midPrice ?? row?.lowPrice ?? null;
-    if (display && usd != null) boxes[type] = { usd, source: "tcgplayer", productName: display.name, productUrl: productUrl(display), asOf };
+    // The exact display MTGJSON names, if TCGplayer lists it here; otherwise match by name.
+    const byId = known?.boxIds[type] != null ? products.find((p) => p.productId === known.boxIds[type]) : undefined;
+    const candidates = [byId, findBoxProduct(products, type, opts)];
+    for (const display of candidates) {
+      const row = display ? priceOf.get(display.productId) : undefined;
+      const usd = row?.marketPrice ?? row?.midPrice ?? row?.lowPrice ?? null;
+      if (display && usd != null) {
+        boxes[type] = { usd, source: "tcgplayer", productName: display.name, productUrl: productUrl(display), asOf };
+        break;
+      }
+    }
   }
-  return { boxes, products: toSealed(products, prices, displays) };
+  return { boxes, products: toSealed(products, prices, displays, false, known) };
 }

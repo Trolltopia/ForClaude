@@ -20,8 +20,18 @@ export const BOOSTER_NAME: Record<BoosterType, string> = {
   collector: "Collector Booster",
 };
 
-/** Short names for tight spots: tabs on a phone, the board. */
-export const BOOSTER_SHORT: Record<BoosterType, string> = { play: "Play", draft: "Draft", set: "Set", collector: "Collector" };
+/** When Set Boosters arrived, the regular booster became the "Draft Booster". */
+const DRAFT_BOOSTER_NAMED = "2020-09-25";
+
+/** A booster's name in its own era: Draft Boosters were plain boosters before Zendikar Rising. */
+export function boosterName(type: BoosterType, releasedAt: string): string {
+  return type === "draft" && releasedAt < DRAFT_BOOSTER_NAMED ? "Booster" : BOOSTER_NAME[type];
+}
+
+/** "Play Booster" → "Play", for tight spots such as tabs on a phone. A plain booster stays "Booster". */
+export function shortBoosterName(name: string): string {
+  return name.replace(/ Booster$/, "") || name;
+}
 
 export function isBoosterType(s: string | null | undefined): s is BoosterType {
   return s != null && (BOOSTER_TYPES as string[]).includes(s);

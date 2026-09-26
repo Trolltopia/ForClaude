@@ -116,6 +116,24 @@ export interface HistogramBin {
   overflow: boolean;
 }
 
+/** Runs of this many boxes, for the "more than one box" view: one box, a few, a store's order. */
+export const BULK_SIZES = [1, 3, 10, 30, 100];
+
+/** How a run of several boxes turns out, as the average value per box across the run. */
+export interface BulkOutcome {
+  boxes: number;
+  /** Average value per box across the run, at these percentiles of runs. */
+  p5: number;
+  p10: number;
+  p25: number;
+  p50: number;
+  p75: number;
+  p90: number;
+  p95: number;
+  /** Share of runs whose boxes, together, were worth at least what they cost (null without a price). */
+  beatPrice: number | null;
+}
+
 export interface SimulationSummary {
   boxes: number;
   mean: number;
@@ -127,6 +145,8 @@ export interface SimulationSummary {
   /** Share of boxes worth at least twice the box price. */
   doublePrice: number | null;
   bins: HistogramBin[];
+  /** Runs of several boxes, one entry per size in BULK_SIZES. */
+  bulk: BulkOutcome[];
 }
 
 function niceStep(raw: number): number {
@@ -136,16 +156,60 @@ function niceStep(raw: number): number {
   return nice * exp;
 }
 
+/** Linear-interpolated quantile of an ascending array. */
+function quantile(sorted: Float64Array, p: number): number {
+  const n = sorted.length;
+  if (n === 0) return 0;
+  const pos = (n - 1) * p;
+  const lo = Math.floor(pos);
+  const hi = Math.min(n - 1, lo + 1);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+
+/**
+ * What opening several boxes looks like: the average box across runs of each size, found
+ * by drawing runs from the simulated boxes (each box is opened independently, so any
+ * handful of simulated boxes is a fair run). The more boxes in a run, the closer its
+ * average sits to the expected value.
+ */
+export function bulkOutcomes(values: Float64Array, boxPrice: number | null, sizes = BULK_SIZES, runs = 4000, seed = 90210): BulkOutcome[] {
+  const n = values.length;
+  if (n === 0) return [];
+  const rng = createRng(seed);
+  return sizes.map((size) => {
+    let averages: Float64Array;
+    if (size === 1) {
+      averages = Float64Array.from(values);
+    } else {
+      averages = new Float64Array(runs);
+      for (let r = 0; r < runs; r++) {
+        let total = 0;
+        for (let b = 0; b < size; b++) total += values[Math.floor(rng() * n)];
+        averages[r] = total / size;
+      }
+    }
+    averages.sort();
+    let ahead = 0;
+    if (boxPrice != null && boxPrice > 0) for (const a of averages) if (a >= boxPrice) ahead++;
+    const q = (p: number) => quantile(averages, p);
+    return {
+      boxes: size,
+      p5: q(0.05),
+      p10: q(0.1),
+      p25: q(0.25),
+      p50: q(0.5),
+      p75: q(0.75),
+      p90: q(0.9),
+      p95: q(0.95),
+      beatPrice: boxPrice != null && boxPrice > 0 ? ahead / averages.length : null,
+    };
+  });
+}
+
 export function summarise(values: Float64Array, boxPrice: number | null, targetBins = 28): SimulationSummary {
   const sorted = Float64Array.from(values).sort();
   const n = sorted.length;
-  const q = (p: number) => {
-    if (n === 0) return 0;
-    const pos = (n - 1) * p;
-    const lo = Math.floor(pos);
-    const hi = Math.min(n - 1, lo + 1);
-    return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-  };
+  const q = (p: number) => quantile(sorted, p);
   let sum = 0;
   for (let i = 0; i < n; i++) sum += sorted[i];
 
@@ -201,5 +265,6 @@ export function summarise(values: Float64Array, boxPrice: number | null, targetB
     beatPrice: boxPrice != null && boxPrice > 0 ? atLeast(boxPrice) : null,
     doublePrice: boxPrice != null && boxPrice > 0 ? atLeast(boxPrice * 2) : null,
     bins,
+    bulk: bulkOutcomes(values, boxPrice),
   };
 }

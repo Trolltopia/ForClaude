@@ -171,7 +171,8 @@ export function Controls({
               Selling fees per card
               <InfoTip>
                 Marketplace and payment fees come off every card you sell. {defaultFees}% is the default; set 0% to see raw market
-                value, or raise it to cover postage.
+                value, or raise it to cover postage. Selling cards on to a store, at the price stores pay for singles (their
+                &ldquo;buylist&rdquo;), usually returns about half to two thirds of market value: 35–50% models that.
               </InfoTip>
             </span>
             <span className="font-semibold">
@@ -179,7 +180,7 @@ export function Controls({
             </span>
           </div>
           <div className="flex h-11 items-center gap-4">
-            <Slider aria-label="Selling fees in percent" min={0} max={30} step={1} value={[fees]} onValueChange={([v]) => onFees(v)} />
+            <Slider aria-label="Selling fees in percent" min={0} max={50} step={1} value={[fees]} onValueChange={([v]) => onFees(v)} />
             {changed && (
               <button type="button" onClick={onReset} className="kicker shrink-0 text-body hover:text-ink">
                 Reset

@@ -123,7 +123,7 @@ export function ModelDetails({
                         </td>
                         <td className="num w-20 py-2 text-right font-semibold">{percent(g.share, g.share < 0.1 ? 1 : 0)}</td>
                         <td className="num w-24 py-2 text-right text-body">{g.cards} cards</td>
-                        <td className="num w-28 py-2 text-right text-body">avg {money(g.avgPrice)}</td>
+                        <td className="num w-36 py-2 text-right text-body">average {money(g.avgPrice)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -138,7 +138,8 @@ export function ModelDetails({
         <div>
           <h3 className="kicker mb-3">Prices</h3>
           <p className="text-body">
-            {live ? "Fetched from Scryfall in your browser" : "Daily snapshot"}, {stamp(snapshot.generatedAt)} ({ago(snapshot.generatedAt)}).
+            {live ? "Fetched from Scryfall in your browser" : "Collected by the daily job"} on {stamp(snapshot.generatedAt)} (
+            {ago(snapshot.generatedAt)}).
           </p>
           <Button variant="outline" size="sm" className="mt-4" onClick={onRefresh} disabled={refreshing}>
             {refreshing ? "Fetching prices…" : "Refresh from Scryfall"}

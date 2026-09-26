@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { InfoTip } from "@/components/ui/tooltip";
 import type { SimulationSummary } from "@/lib/engine/simulate";
-import { money, percent, ratio, signedMoney } from "@/lib/format";
+import { money, percent, ratio } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 function Tile({
@@ -65,7 +65,8 @@ export function KpiRow({
               <>
                 {" · "}
                 <span className={provisional ? "" : diff >= 0 ? "text-good" : "text-bad"}>
-                  {diff >= 0 ? "▲" : "▼"} {signedMoney(diff)} vs. the box{provisional ? " (preorder)" : ""}
+                  {diff >= 0 ? "▲" : "▼"} {money(Math.abs(diff))} {diff >= 0 ? "more" : "less"} than the box costs
+                  {provisional ? " (preorder prices)" : ""}
                 </span>
               </>
             )}

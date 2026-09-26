@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeEv, expectedSheetCounts, mostValuable, priceOf, realisedValue } from "../src/lib/engine/ev";
 import { createAliasSampler, createRng } from "../src/lib/engine/random";
-import { compileModel, openBox, simulateBoxValues, summarise } from "../src/lib/engine/simulate";
+import { bulkOutcomes, compileModel, openBox, simulateBoxValues, summarise } from "../src/lib/engine/simulate";
 import type { BoosterModel, CardRecord } from "../src/lib/types";
 import { card } from "./helpers";
 
@@ -156,6 +156,43 @@ describe("simulation", () => {
     expect(s.doublePrice).toBe(0);
     expect(s.bins.reduce((a, b) => a + b.count, 0)).toBe(1000);
     expect(s.bins[0].from).toBeLessThanOrEqual(0);
+    expect(s.bulk.map((b) => b.boxes)).toEqual([1, 3, 10, 30, 100]);
+  });
+});
+
+describe("runs of several boxes", () => {
+  // A coin-flip box: worth $0 or $100. Its average is $50 and its standard deviation $50,
+  // so the average of 100 boxes has a standard deviation of $5.
+  const coin = Float64Array.from({ length: 10_000 }, (_, i) => (i % 2 ? 100 : 0));
+
+  it("narrows toward the expected value as the run grows", () => {
+    const [one, three, ten, thirty, hundred] = bulkOutcomes(coin, 60);
+    expect([one.p5, one.p95]).toEqual([0, 100]);
+    // The middle half of runs; the outer tails of a coin flip stay at $0 and $100 for a few boxes.
+    const width = (b: typeof one) => b.p75 - b.p25;
+    expect(width(three)).toBeLessThan(width(one));
+    expect(width(ten)).toBeLessThan(width(three));
+    expect(width(thirty)).toBeLessThan(width(ten));
+    expect(width(hundred)).toBeLessThan(width(thirty));
+    // 1.645 standard deviations either side of $50.
+    expect(hundred.p5).toBeGreaterThan(50 - 1.645 * 5 - 1.5);
+    expect(hundred.p5).toBeLessThan(50 - 1.645 * 5 + 1.5);
+    expect(hundred.p95).toBeGreaterThan(50 + 1.645 * 5 - 1.5);
+    expect(hundred.p95).toBeLessThan(50 + 1.645 * 5 + 1.5);
+    expect(hundred.p50).toBeCloseTo(50, 0);
+  });
+
+  it("gives the chance a run pays for itself", () => {
+    const [one, , , , hundred] = bulkOutcomes(coin, 60);
+    expect(one.beatPrice).toBeCloseTo(0.5);
+    // Two standard deviations above the average: about 2.3% of runs.
+    expect(hundred.beatPrice!).toBeGreaterThan(0.01);
+    expect(hundred.beatPrice!).toBeLessThan(0.04);
+    expect(bulkOutcomes(coin, null)[0].beatPrice).toBeNull();
+  });
+
+  it("is repeatable", () => {
+    expect(bulkOutcomes(coin, 60)).toEqual(bulkOutcomes(coin, 60));
   });
 });
 

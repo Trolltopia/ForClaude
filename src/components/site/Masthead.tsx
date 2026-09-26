@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useSnapshotIndex } from "@/hooks/useSnapshotIndex";
-import { stamp, today } from "@/lib/format";
+import { ago, stamp, today } from "@/lib/format";
 import { MarketStrip } from "./MarketStrip";
 import { SetMenu } from "./SetMenu";
 import { ThemeToggle } from "./ThemeToggle";
@@ -29,7 +29,11 @@ function Dateline() {
       <div className="mx-auto flex h-9 max-w-page items-center justify-between gap-4 px-4 text-body sm:px-6">
         <span className="kicker truncate">{today()}</span>
         <div className="flex items-center gap-5">
-          {index && <span className="kicker hidden md:inline">Prices as of {stamp(index.generatedAt)}</span>}
+          {index && (
+            <span className="kicker hidden md:inline" title={`Prices collected ${stamp(index.generatedAt)}`}>
+              Prices collected {ago(index.generatedAt)}
+            </span>
+          )}
           <ThemeToggle />
         </div>
       </div>

@@ -3,6 +3,7 @@ import { CardImage } from "@/components/CardImage";
 import { RarityPip, RARITY_LABEL } from "@/components/RarityPip";
 import { HoverCard } from "@/components/ui/hover-card";
 import { Segmented } from "@/components/ui/segmented";
+import { InfoTip } from "@/components/ui/tooltip";
 import type { CardStat } from "@/lib/engine/ev";
 import { money, oneIn, percent } from "@/lib/format";
 import type { Rarity } from "@/lib/types";
@@ -22,6 +23,7 @@ function SortHeader({
   setSort,
   align = "right",
   className,
+  info,
 }: {
   label: string;
   k: SortKey;
@@ -29,6 +31,8 @@ function SortHeader({
   setSort: (s: { key: SortKey; dir: 1 | -1 }) => void;
   align?: "left" | "right";
   className?: string;
+  /** What the column means, behind an info button. */
+  info?: string;
 }) {
   const active = sort.key === k;
   return (
@@ -49,6 +53,11 @@ function SortHeader({
           </span>
         )}
       </button>
+      {info && (
+        <span className="ml-1.5 inline-flex align-middle">
+          <InfoTip>{info}</InfoTip>
+        </span>
+      )}
     </th>
   );
 }
@@ -153,11 +162,38 @@ export function CardTable({ cards }: { cards: CardStat[] }) {
             <tr className="border-b border-ink text-[12px] text-body">
               <SortHeader label="Card" k="name" sort={sort} setSort={setSort} align="left" />
               <th scope="col" className="hidden py-2 pr-4 font-semibold md:table-cell">Version</th>
-              <SortHeader label="Price" k="price" sort={sort} setSort={setSort} />
-              <SortHeader label="You keep" k="keep" sort={sort} setSort={setSort} className="hidden sm:table-cell" />
-              <SortHeader label="Odds" k="odds" sort={sort} setSort={setSort} className="hidden md:table-cell" />
-              <SortHeader label="In a box" k="box" sort={sort} setSort={setSort} className="hidden md:table-cell" />
-              <SortHeader label="Adds to box" k="impact" sort={sort} setSort={setSort} />
+              <SortHeader label="Price" k="price" sort={sort} setSort={setSort} info="TCGplayer market price for this card in this finish." />
+              <SortHeader
+                label="You keep"
+                k="keep"
+                sort={sort}
+                setSort={setSort}
+                className="hidden sm:table-cell"
+                info="The price after your selling fees. Cards under your minimum price show as bulk and count as nothing."
+              />
+              <SortHeader
+                label="Odds"
+                k="odds"
+                sort={sort}
+                setSort={setSort}
+                className="hidden md:table-cell"
+                info="How often a pack holds this card in this finish."
+              />
+              <SortHeader
+                label="In a box"
+                k="box"
+                sort={sort}
+                setSort={setSort}
+                className="hidden md:table-cell"
+                info="The chance a sealed box holds at least one copy."
+              />
+              <SortHeader
+                label="Adds to box"
+                k="impact"
+                sort={sort}
+                setSort={setSort}
+                info="What this card adds to the value of an average box: what you keep from it times how many copies an average box holds."
+              />
             </tr>
           </thead>
           <tbody>

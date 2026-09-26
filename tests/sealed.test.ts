@@ -151,6 +151,31 @@ describe("sealedFrom", () => {
     expect([boxes.draft?.usd, boxes.set?.usd, boxes.collector?.usd]).toEqual([150, 120, 260]);
   });
 
+  it("prefers the exact products MTGJSON names, and its booster counts", () => {
+    const products = [
+      P(1, "Wilds of Eldraine - Draft Booster Display"),
+      P(2, "Wilds of Eldraine - Draft Booster Display (Minimal Packaging)"),
+      P(3, "Wilds of Eldraine - Bundle"),
+      P(4, "Wilds of Eldraine - Trove of Eldraine"),
+    ];
+    const prices = [1, 2, 3, 4].map((productId) => ({ productId, marketPrice: productId * 100, subTypeName: "Normal" }));
+    const known = {
+      boxIds: { draft: 2 },
+      byTcgplayerId: new Map([
+        [2, { booster: "draft" as const, packs: 36 }],
+        [3, { booster: "set" as const, packs: 8 }],
+        [4, { booster: "set" as const, packs: 30 }],
+      ]),
+    };
+    const { boxes, products: sealed } = sealedFrom(products, prices, { draft: 36, set: 30, collector: 12 }, known);
+    expect(boxes.draft?.usd).toBe(200);
+    const bundle = sealed.find((x) => x.productId === 3)!;
+    expect([bundle.kind, bundle.booster, bundle.packs]).toEqual(["Bundle", "set", 8]);
+    // A name we can't read becomes a Set Booster display because it holds exactly one display's worth.
+    const trove = sealed.find((x) => x.productId === 4)!;
+    expect([trove.kind, trove.packs]).toEqual(["Set Booster Display", 30]);
+  });
+
   it("knows Play Booster cases hold six displays", () => {
     expect(boostersIn("Play Booster Case", { play: 36 })).toEqual({ booster: "play", packs: 216 });
   });

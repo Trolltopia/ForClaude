@@ -6,11 +6,12 @@ import { Masthead } from "@/components/site/Masthead";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { useSnapshotIndex } from "@/hooks/useSnapshotIndex";
-import { BOOSTER_SHORT } from "@/lib/boosters";
+import { shortBoosterName } from "@/lib/boosters";
 import { date, isReleased, money, monthYear, percent, ratio } from "@/lib/format";
 import type { BoosterSummary, BoosterType, SetSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { settingsPhrase, VERDICT_TITLE, verdictFor } from "@/lib/verdict";
+import { ERAS, type Era } from "@/lib/eras";
 import { CATALOG, type CatalogEntry } from "@/sets/catalog";
 
 function headline(s: SetSummary, b: BoosterSummary): string {
@@ -90,11 +91,11 @@ type BoardView = "main" | "set" | "collector";
 const VIEWS: { value: BoardView; label: string; note: string }[] = [
   {
     value: "main",
-    label: "Play / Draft",
-    note: "Each set's main booster box: Play Boosters from Murders at Karlov Manor (2024) on, Draft Boosters before that.",
+    label: "Main booster",
+    note: "Each set's main booster box: Play Boosters from 2024, Draft Boosters from late 2020 to 2023, and plain boosters before that.",
   },
-  { value: "set", label: "Set", note: "Set Boosters, sold from Zendikar Rising (2020) to The Lost Caverns of Ixalan (2023), 30 to a box." },
-  { value: "collector", label: "Collector", note: "Collector Boosters, 12 to a box: fewer, pricier packs built around foils and alternate art." },
+  { value: "set", label: "Set", note: "Set Boosters, sold from Zendikar Rising (2020) to The Lost Caverns of Ixalan (2023)." },
+  { value: "collector", label: "Collector", note: "Collector Boosters, sold since Throne of Eldraine (2019): fewer, pricier packs built around foils and alternate art." },
 ];
 
 interface Row {
@@ -105,10 +106,11 @@ interface Row {
   href: string;
 }
 
-/** The board's rows for a view: sets that sold that booster, newest first. */
-function boardRows(sets: SetSummary[], view: BoardView): Row[] {
+/** The board's rows for a view and a stretch of years: sets that sold that booster, newest first. */
+function boardRows(sets: SetSummary[], view: BoardView, era: Era | null): Row[] {
   const byCode = new Map(sets.map((s) => [s.code, s]));
   return CATALOG.flatMap((entry) => {
+    if (era && (entry.releasedAt < era.from || entry.releasedAt > era.to)) return [];
     const main = entry.boosters[0].type;
     const type = view === "main" ? main : view;
     if (!entry.boosters.some((b) => b.type === type)) return [];
@@ -131,6 +133,17 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
     };
     return sort === "release" ? all : [...all].sort((a, b) => key(b) - key(a));
   }, [all, sort]);
+  // Newest first, a heading for each year; other sorts are one flat list.
+  const groups = useMemo(() => {
+    if (sort !== "release") return [[null, rows]] as [string | null, Row[]][];
+    const out: [string | null, Row[]][] = [];
+    for (const r of rows) {
+      const year = r.entry.releasedAt.slice(0, 4);
+      if (out.at(-1)?.[0] !== year) out.push([year, []]);
+      out.at(-1)![1].push(r);
+    }
+    return out;
+  }, [rows, sort]);
 
   const th = (k: SortKey, label: string, cls = "") => (
     <th scope="col" className={cn("py-2 font-semibold", cls)} aria-sort={sort === k ? "descending" : "none"}>
@@ -155,63 +168,73 @@ function Board({ rows: all, view }: { rows: Row[]; view: BoardView }) {
             <th scope="col" className="hidden py-2 font-semibold lg:table-cell">Top card</th>
           </tr>
         </thead>
-        <tbody>
-          {rows.map(({ entry, s, b, type, href }) => {
-            const v = verdictFor(b?.ratio ?? null, s?.releasedAt);
-            return (
-              <tr key={entry.code} className="group cursor-pointer border-b border-hairline hover:bg-canvas-soft" onClick={() => navigate(href)}>
-                <th scope="row" className="py-3.5 pr-4 font-normal">
-                  <Link href={href} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                    <span className="flex w-6 shrink-0 justify-center">
-                      <SetIcon src={s?.iconSvg ?? null} className="h-5 w-auto max-w-6" />
-                    </span>
-                    <span className="font-sans text-[16px] font-bold group-hover:underline group-hover:underline-offset-4">
-                      {s?.name ?? entry.name}
-                    </span>
-                    <span className="kicker hidden text-muted sm:inline">{entry.code}</span>
-                  </Link>
+        {groups.map(([year, group]) => (
+          <tbody key={year ?? "all"}>
+            {year && (
+              <tr>
+                <th scope="colgroup" colSpan={7} className="pt-7 pb-2 text-left">
+                  <span className="kicker text-ink">{year}</span>
+                  <span className="kicker ml-2 text-muted">{group.length}</span>
                 </th>
-                <td className="num hidden py-3.5 pr-4 text-[14px] whitespace-nowrap text-body lg:table-cell">
-                  {monthYear(s?.releasedAt ?? entry.releasedAt)}
-                </td>
-                <td className="num hidden py-3.5 pr-4 text-right text-[15px] whitespace-nowrap md:table-cell">
-                  {money(b?.boxPrice.usd)}
-                  {b?.boxPrice.source === "estimate" && b.boxPrice.usd != null && (
-                    <span className="ml-0.5 text-muted" title="Estimated street price">
-                      *
-                    </span>
-                  )}
-                  {view === "main" && b && (
-                    <span className="block font-sans text-[11.5px] text-muted">
-                      {b.packsPerBox} × {BOOSTER_SHORT[type]}
-                    </span>
-                  )}
-                </td>
-                <td className="num hidden py-3.5 pr-6 text-right text-[15px] font-semibold whitespace-nowrap md:table-cell">
-                  {b ? money(b.evBox) : "—"}
-                </td>
-                <td className="py-3.5 pr-4 md:pr-6">
-                  <div className="flex items-center gap-3">
-                    <span className="num w-12 shrink-0 text-[15px] font-semibold">{ratio(b?.ratio)}</span>
-                    <RatioMeter value={b?.ratio ?? null} />
-                  </div>
-                </td>
-                <td className="hidden py-3.5 pr-4 text-[14px] font-semibold sm:table-cell">
-                  {v ? VERDICT_TITLE[v] : <span className="font-normal text-muted">{b ? "No box price" : "No data"}</span>}
-                </td>
-                <td className="hidden max-w-56 py-3.5 text-[14px] lg:table-cell">
-                  {b?.topCard ? (
-                    <span className="block truncate">
-                      {b.topCard.name} <span className="num text-body">{money(b.topCard.price)}</span>
-                    </span>
-                  ) : (
-                    <span className="text-muted">—</span>
-                  )}
-                </td>
               </tr>
-            );
-          })}
-        </tbody>
+            )}
+            {group.map(({ entry, s, b, href }) => {
+              const v = verdictFor(b?.ratio ?? null, s?.releasedAt);
+              return (
+                <tr key={entry.code} className="group cursor-pointer border-b border-hairline hover:bg-canvas-soft" onClick={() => navigate(href)}>
+                  <th scope="row" className="py-3.5 pr-4 font-normal">
+                    <Link href={href} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                      <span className="flex w-6 shrink-0 justify-center">
+                        <SetIcon src={s?.iconSvg ?? null} className="h-5 w-auto max-w-6" />
+                      </span>
+                      <span className="font-sans text-[16px] font-bold group-hover:underline group-hover:underline-offset-4">
+                        {s?.name ?? entry.name}
+                      </span>
+                      <span className="kicker hidden text-muted sm:inline">{entry.code}</span>
+                    </Link>
+                  </th>
+                  <td className="num hidden py-3.5 pr-4 text-[14px] whitespace-nowrap text-body lg:table-cell">
+                    {monthYear(s?.releasedAt ?? entry.releasedAt)}
+                  </td>
+                  <td className="num hidden py-3.5 pr-4 text-right text-[15px] whitespace-nowrap md:table-cell">
+                    {money(b?.boxPrice.usd)}
+                    {b?.boxPrice.source === "estimate" && b.boxPrice.usd != null && (
+                      <span className="ml-0.5 text-muted" title="Estimated street price">
+                        *
+                      </span>
+                    )}
+                    {view === "main" && b && (
+                      <span className="block font-sans text-[11.5px] text-muted">
+                        {b.packsPerBox} × {shortBoosterName(b.name)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="num hidden py-3.5 pr-6 text-right text-[15px] font-semibold whitespace-nowrap md:table-cell">
+                    {b ? money(b.evBox) : "—"}
+                  </td>
+                  <td className="py-3.5 pr-4 md:pr-6">
+                    <div className="flex items-center gap-3">
+                      <span className="num w-12 shrink-0 text-[15px] font-semibold">{ratio(b?.ratio)}</span>
+                      <RatioMeter value={b?.ratio ?? null} />
+                    </div>
+                  </td>
+                  <td className="hidden py-3.5 pr-4 text-[14px] font-semibold sm:table-cell">
+                    {v ? VERDICT_TITLE[v] : <span className="font-normal text-muted">{b ? "No box price" : "No data"}</span>}
+                  </td>
+                  <td className="hidden max-w-56 py-3.5 text-[14px] lg:table-cell">
+                    {b?.topCard ? (
+                      <span className="block truncate">
+                        {b.topCard.name} <span className="num text-body">{money(b.topCard.price)}</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        ))}
       </table>
     </div>
   );
@@ -250,15 +273,29 @@ function isView(v: string | null): v is BoardView {
 export function HomePage() {
   const { status, index } = useSnapshotIndex();
   const [, navigate] = useLocation();
-  const requested = new URLSearchParams(useSearch()).get("booster");
+  const query = new URLSearchParams(useSearch());
+  const requested = query.get("booster");
   const view: BoardView = isView(requested) ? requested : "main";
+  const era = ERAS.find((e) => e.value === query.get("years")) ?? null;
+  // Board settings live in the address, so a filtered board can be shared.
+  const setBoard = (patch: { booster?: BoardView; years?: string }) => {
+    const next = new URLSearchParams(window.location.search);
+    const booster = patch.booster ?? view;
+    const years = patch.years ?? era?.value ?? "all";
+    if (booster === "main") next.delete("booster");
+    else next.set("booster", booster);
+    if (years === "all") next.delete("years");
+    else next.set("years", years);
+    const qs = next.toString();
+    navigate(qs ? `/?${qs}` : "/", { replace: true });
+  };
   useEffect(() => {
     document.title = "Crack or Keep — What a Magic booster box is worth once you open it";
   }, []);
 
   const sets = index?.sets ?? [];
   const lead = sets.find((s) => (s.boosters[0]?.evBox ?? 0) > 0) ?? null;
-  const rows = useMemo(() => boardRows(sets, view), [sets, view]);
+  const rows = useMemo(() => boardRows(sets, view, era), [sets, view, era]);
   // Preorder prices would win this every time; only count sets that are out.
   const best = rows
     .filter((r): r is Row & { s: SetSummary; b: BoosterSummary & { ratio: number } } => r.b?.ratio != null && isReleased(r.s!.releasedAt))
@@ -297,14 +334,27 @@ export function HomePage() {
                 Every booster box, priced
               </h2>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="kicker text-body">Booster</span>
-              <Segmented
-                label="Which booster box to compare"
-                value={view}
-                onChange={(v) => navigate(v === "main" ? "/" : `/?booster=${v}`, { replace: true })}
-                options={VIEWS.map(({ value, label }) => ({ value, label }))}
-              />
+            <div className="flex w-full min-w-0 flex-col gap-2.5 sm:w-auto sm:items-end">
+              <div className="flex items-center gap-3">
+                <span className="kicker w-16 text-body sm:w-auto">Booster</span>
+                <Segmented
+                  label="Which booster box to compare"
+                  value={view}
+                  onChange={(v) => setBoard({ booster: v })}
+                  options={VIEWS.map(({ value, label }) => ({ value, label }))}
+                />
+              </div>
+              <div className="flex max-w-full items-center gap-3">
+                <span className="kicker w-16 shrink-0 text-body sm:w-auto">Years</span>
+                <div className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <Segmented
+                    label="Which years to show"
+                    value={era?.value ?? "all"}
+                    onChange={(v) => setBoard({ years: v })}
+                    options={[{ value: "all", label: "All" }, ...ERAS.map(({ value, label }) => ({ value, label }))]}
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <div className="flex flex-wrap justify-between gap-x-10 gap-y-2 pt-3 pb-1 text-[14px] text-body">
@@ -317,6 +367,7 @@ export function HomePage() {
             )}
           </div>
           <Board rows={rows} view={view} />
+          {rows.length === 0 && <p className="py-10 text-[15px] text-body">No sets sold that booster in those years.</p>}
           <p className="mt-3 text-[12px] text-body">
             Expected value is after 8% selling fees per card; open a set to change that or to ignore bulk. Click a column heading to
             sort. * Estimated street price: TCGplayer had no market price for the box.

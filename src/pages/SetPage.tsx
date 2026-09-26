@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { Section } from "@/components/Section";
 import { BoosterTabs } from "@/components/set/BoosterTabs";
+import { BulkSection } from "@/components/set/BulkSection";
 import { CardTable } from "@/components/set/CardTable";
 import { ChaseGrid } from "@/components/set/ChaseGrid";
 import { Controls } from "@/components/set/Controls";
@@ -15,13 +16,15 @@ import { Masthead } from "@/components/site/Masthead";
 import { useSnapshot } from "@/hooks/useSnapshot";
 import { useQueryNumbers } from "@/hooks/useQueryState";
 import { SIM_BOXES, useSimulation } from "@/hooks/useSimulation";
-import { BOOSTER_NAME, boosterView, byBoosterOrder } from "@/lib/boosters";
+import { boosterName, boosterView, byBoosterOrder } from "@/lib/boosters";
 import { computeEv, DEFAULT_FEES, type EvParams } from "@/lib/engine/ev";
 import { count, isReleased, money, percent } from "@/lib/format";
 import type { BoosterType } from "@/lib/types";
 import { catalogEntry } from "@/sets/catalog";
 
 const QUERY_KEYS = ["box", "floor", "fees"] as const;
+/** Up to half: enough for a store that sells in bulk to other stores rather than card by card. */
+const MAX_FEES = 50;
 
 /** /sets/fdn for the main booster, /sets/fdn/collector for the others; floor and fees carry over, a box price doesn't. */
 function boosterHref(code: string, type: BoosterType, main: BoosterType | undefined, search: string, box: number | null = null) {
@@ -41,7 +44,7 @@ export function SetPage({ code, booster: requested }: { code: string; booster?: 
 
   const defaultFees = Math.round(DEFAULT_FEES * 100);
   const floor = Math.max(0, Math.min(1000, query.floor ?? 0));
-  const fees = Math.max(0, Math.min(30, query.fees ?? defaultFees));
+  const fees = Math.max(0, Math.min(MAX_FEES, query.fees ?? defaultFees));
   const params = useMemo<EvParams>(() => ({ floor, fees: fees / 100 }), [floor, fees]);
 
   const main = set?.boosters[0]?.type;
@@ -108,7 +111,14 @@ export function SetPage({ code, booster: requested }: { code: string; booster?: 
                 // Boosters the set was sold in that nobody has published sheets for yet.
                 ...(entry?.boosters ?? [])
                   .filter((spec) => !set!.boosters.some((b) => b.type === spec.type))
-                  .map((spec) => ({ type: spec.type, name: BOOSTER_NAME[spec.type], packsPerBox: spec.packsPerBox, boxPrice: null, evBox: 0, href: null })),
+                  .map((spec) => ({
+                    type: spec.type,
+                    name: boosterName(spec.type, set!.releasedAt),
+                    packsPerBox: spec.packsPerBox,
+                    boxPrice: null,
+                    evBox: 0,
+                    href: null,
+                  })),
               ].sort(byBoosterOrder)}
             />
             <Controls
@@ -173,6 +183,7 @@ export function SetPage({ code, booster: requested }: { code: string; booster?: 
                   products={snapshot.sealed}
                   boosters={boosters.map(({ booster: b, evPack }) => ({
                     type: b.type,
+                    name: b.name,
                     packsPerBox: b.packsPerBox,
                     evPack,
                     boxUrl: b.boxPrice.productUrl ?? null,
@@ -219,13 +230,27 @@ export function SetPage({ code, booster: requested }: { code: string; booster?: 
               <SimulationSection snapshot={snapshot} params={params} boxPrice={boxPrice} sim={sim} running={running} />
             </Section>
 
-            <Section id="cards" number="05" rail="Card list" title="Every card you can open" dek="Sorted by what each card adds to an average box. “You keep” is the price after your selling fees; cards under your floor show as bulk. Hover a name to see the card.">
+            <Section
+              id="bulk"
+              number="05"
+              rail="Buying in bulk"
+              title="One box or a hundred"
+              dek="Expected value is what a box is worth averaged over a very large number of boxes. Open one and the result can land far from it; open a hundred and the average box settles close to it. Each row shows runs of that many boxes at your settings."
+            >
+              {sim?.bulk?.length ? (
+                <BulkSection bulk={sim.bulk} boxPrice={boxPrice} evBox={ev.evBox} />
+              ) : (
+                <p className="text-[14px] text-body">Simulating…</p>
+              )}
+            </Section>
+
+            <Section id="cards" number="06" rail="Card list" title="Every card you can open" dek="Sorted by what each card adds to an average box. “You keep” is the price after your selling fees; cards under your floor show as bulk. Hover a name to see the card.">
               <CardTable cards={ev.cards} />
             </Section>
 
             <Section
               id="model"
-              number="06"
+              number="07"
               rail="Collation"
               title="How the box is modelled"
               dek={

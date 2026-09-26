@@ -1,4 +1,4 @@
-import { BOOSTER_NAME, boosterView, byBoosterOrder } from "../boosters";
+import { boosterName, boosterView, byBoosterOrder } from "../boosters";
 import { computeEv, DEFAULT_PARAMS, mostValuable } from "../engine/ev";
 import type { BoosterProduct, BoosterSummary, BoxPrice, CardRecord, SetSnapshot, SetSummary, Snapshot, Source } from "../types";
 import type { BoosterSpec, CatalogEntry } from "@/sets/catalog";
@@ -69,7 +69,7 @@ async function rulesBooster(entry: CatalogEntry, spec: BoosterSpec, client: Scry
   }
   return {
     type: spec.type,
-    name: BOOSTER_NAME[spec.type],
+    name: boosterName(spec.type, entry.releasedAt),
     packsPerBox: spec.packsPerBox,
     cardsPerPack: rules.slots.reduce((s, x) => s + x.count, 0),
     boxPrice: estimateBox(spec),
@@ -81,6 +81,7 @@ async function rulesBooster(entry: CatalogEntry, spec: BoosterSpec, client: Scry
 
 /** Boosters built from MTGJSON's print sheets, with one Scryfall lookup for all of them. */
 async function mtgjsonBoosters(
+  entry: CatalogEntry,
   specs: BoosterSpec[],
   setFile: MtgjsonSetFile,
   extraSets: MtgjsonSetFile[],
@@ -107,7 +108,7 @@ async function mtgjsonBoosters(
     const contents = picked.config.boosters[0]?.contents ?? {};
     return {
       type: spec.type,
-      name: BOOSTER_NAME[spec.type],
+      name: boosterName(spec.type, entry.releasedAt),
       packsPerBox: spec.packsPerBox,
       cardsPerPack: Object.values(contents).reduce((s, n) => s + n, 0) || null,
       boxPrice: estimateBox(spec),
@@ -150,7 +151,7 @@ export async function buildSetSnapshot(entry: CatalogEntry, deps: BuildDeps): Pr
         .filter((c) => c !== entry.code.toUpperCase()),
     );
     const extras = (await Promise.all([...extraCodes].map((c) => deps.mtgjson!(c)))).filter((f): f is MtgjsonSetFile => f != null);
-    boosters.push(...(await mtgjsonBoosters(viaMtgjson, file, extras, deps.client, pool)));
+    boosters.push(...(await mtgjsonBoosters(entry, viaMtgjson, file, extras, deps.client, pool)));
     sources.unshift({ label: "MTGJSON — booster sheets and weights", url: `https://mtgjson.com/api/v5/${entry.code.toUpperCase()}.json` });
   }
   if (!boosters.length) throw new Error("no MTGJSON booster data and no rules config");
@@ -159,7 +160,7 @@ export async function buildSetSnapshot(entry: CatalogEntry, deps: BuildDeps): Pr
   const notes: string[] = [];
   const unmodelled = entry.boosters.filter((spec) => !boosters.some((b) => b.type === spec.type));
   if (unmodelled.length) {
-    const names = unmodelled.map((spec) => `${BOOSTER_NAME[spec.type]}s`).join(" and ");
+    const names = unmodelled.map((spec) => `${boosterName(spec.type, entry.releasedAt)}s`).join(" and ");
     notes.push(`${names} aren't priced yet: MTGJSON hasn't published their print sheets. They'll appear here once it does.`);
   }
 

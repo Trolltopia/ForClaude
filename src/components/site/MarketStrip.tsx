@@ -4,6 +4,9 @@ import { isReleased, ratio } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CATALOG } from "@/sets/catalog";
 
+/** The strip follows the market now: the newest sets. The board has the rest. */
+const RECENT = CATALOG.slice(0, 20);
+
 /** One line per set, like a stock ticker: code, price-to-value ratio, and which side of 1.00× it's on. */
 export function MarketStrip() {
   const { index } = useSnapshotIndex();
@@ -13,7 +16,7 @@ export function MarketStrip() {
   return (
     <nav aria-label="All sets" className="border-b border-hairline">
       <ul className="mx-auto flex max-w-page overflow-x-auto px-4 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden">
-        {CATALOG.map((entry) => {
+        {RECENT.map((entry) => {
           const s = byCode.get(entry.code);
           // Each set's main booster: Play, or Draft before 2024.
           const r = s?.boosters[0]?.ratio ?? null;

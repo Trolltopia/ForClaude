@@ -30,6 +30,7 @@ const TOC: [string, string][] = [
   ["ratio", "Price ÷ value, and the verdict"],
   ["realism", "Bulk floors and selling costs"],
   ["simulation", "Why simulate at all"],
+  ["bulk", "One box or a hundred"],
   ["limits", "What this doesn't know"],
 ];
 
@@ -169,6 +170,28 @@ value of a box  = packs per box × value of a pack`}
             <P>
               The simulation runs in your browser, in a background thread, with a fixed seed so the numbers don&rsquo;t jitter
               between visits. The &ldquo;open a box&rdquo; button uses a fresh seed every time.
+            </P>
+
+            <H id="bulk">One box or a hundred</H>
+            <P>
+              Expected value is exact, but it is a long-run average. A single box is a lottery ticket: most land below the average
+              and a few land far above it. Open more boxes and the lucky and unlucky ones cancel out, so the average box across
+              your run settles toward the expected value. The spread shrinks with the square root of the number of boxes: a hundred
+              boxes swing about a tenth as much per box as one does.
+            </P>
+            <P>
+              The &ldquo;one box or a hundred&rdquo; table on each set page shows this with the simulated boxes, for runs of 1, 3, 10,
+              30 and 100. For each it gives the chance the whole run comes out ahead of what it cost, the range where nine runs in
+              ten land, a bad run (one in twenty does this badly or worse), and the most you could pay per box and still come out
+              ahead nine times in ten. That last number is the useful one for a store: below it, buying the box is close to a sure
+              thing; between it and the expected value you win on average but can lose on the run; above the expected value you
+              lose on average, however many boxes you open.
+            </P>
+            <P>
+              For a store the bigger question is often what the cards are really worth to you. Market price is what singles sell for
+              one at a time. Selling that way costs fees and postage, and the slow cards sit in stock. Selling the lot on to another
+              store returns roughly half to two thirds of market. The selling-fees slider goes to 50% for that, and the minimum-price
+              setting drops the bulk nobody pays for.
             </P>
 
             <H id="limits">What this doesn&rsquo;t know</H>

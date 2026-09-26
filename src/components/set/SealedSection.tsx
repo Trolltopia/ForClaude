@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { InfoTip } from "@/components/ui/tooltip";
-import { BOOSTER_NAME, boosterOfKind } from "@/lib/boosters";
+import { boosterOfKind } from "@/lib/boosters";
 import { money, ratio } from "@/lib/format";
 import type { BoosterType, SealedKind, SealedProduct } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,8 @@ const GROUPS: { title: string; kinds: SealedKind[]; collapsed?: boolean }[] = [
 /** A booster of this set the calculator can price, with its value at the current settings. */
 export interface PricedBooster {
   type: BoosterType;
+  /** The booster's name in its era, e.g. "Booster" for a Draft Booster before 2020. */
+  name: string;
   packsPerBox: number;
   evPack: number;
   /** The TCGplayer listing behind the booster's market box price. */
@@ -60,6 +62,8 @@ export function SealedSection({
   onUseAsBox: (booster: BoosterType, price: number | null) => void;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  // Before Set Boosters existed, a Draft Booster was just a booster.
+  const draftName = boosters.find((b) => b.type === "draft")?.name ?? "Draft Booster";
   // Unpriced listings (no sales, no offers yet) stay in the list, after the priced ones.
   const groups = GROUPS.map((g) => ({ ...g, items: products.filter((p) => g.kinds.includes(p.kind)) })).filter((g) => g.items.length);
 
@@ -74,7 +78,7 @@ export function SealedSection({
     const active = type === current && asBox != null && boxPrice != null && Math.abs(asBox - boxPrice) < 0.005;
     // The listing the market box price comes from: using it just drops any override.
     const isMarketBox = priced?.boxUrl != null && p.url === priced.boxUrl;
-    const title = p.kind === "Other" || p.kind === "Case" || p.kind === "Commander Deck" ? shortName(p.name) : p.kind;
+    const title = p.kind === "Other" || p.kind === "Case" || p.kind === "Commander Deck" ? shortName(p.name) : p.kind.replace("Draft Booster", draftName);
     return (
       <tr key={p.productId} className="border-b border-hairline">
         <td className="w-full max-w-0 py-2 pr-4">
@@ -94,7 +98,7 @@ export function SealedSection({
           {perPack != null ? money(perPack) : <span className="text-muted">—</span>}
           {p.packs != null && p.packs > 1 && (
             <span className="block font-sans text-[11.5px] text-muted">
-              {p.packs} {type && (p.kind === "Bundle" || p.kind === "Gift Bundle") ? `${BOOSTER_NAME[type]}s` : "boosters"}
+              {p.packs} {priced && (p.kind === "Bundle" || p.kind === "Gift Bundle") ? `${priced.name}s` : "boosters"}
             </span>
           )}
         </td>
@@ -109,7 +113,7 @@ export function SealedSection({
                 type="button"
                 onClick={() => onUseAsBox(type, isMarketBox ? null : Math.round(asBox * 100) / 100)}
                 className="kicker text-ink underline decoration-1 underline-offset-4 hover:decoration-2"
-                title={`Price the ${BOOSTER_NAME[type]} calculator as ${priced!.packsPerBox} boosters bought this way: ${money(asBox)}`}
+                title={`Price the ${priced!.name} calculator as ${priced!.packsPerBox} boosters bought this way: ${money(asBox)}`}
               >
                 Use as box
               </button>
@@ -156,7 +160,7 @@ export function SealedSection({
               <tbody key={g.title}>
                 <tr>
                   <th scope="colgroup" colSpan={6} className="pt-6 pb-2 text-left">
-                    <span className="kicker text-ink">{g.title}</span>
+                    <span className="kicker text-ink">{g.title.replace("Draft Booster", draftName)}</span>
                     <span className="kicker ml-2 text-muted">{g.items.length}</span>
                     {g.collapsed && (
                       <button
