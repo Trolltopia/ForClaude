@@ -10,8 +10,9 @@ export function Footer() {
         <div>
           <Wordmark className="text-[44px]" />
           <p className="mt-5 max-w-sm font-serif text-[15px] leading-relaxed text-[#bdbdbd]">
-            An expected-value calculator for Magic: The Gathering booster boxes. Card prices are TCGplayer market prices
-            by way of Scryfall; box prices come from TCGplayer. Nothing here is financial advice — it's cardboard.
+            What Magic: The Gathering booster boxes, Commander decks and Secret Lair drops are worth opened. Card prices are
+            TCGplayer market prices by way of Scryfall; sealed prices come from TCGplayer. Nothing here is financial advice —
+            it's cardboard.
           </p>
         </div>
         <div>
@@ -30,6 +31,19 @@ export function Footer() {
           </Link>
         </div>
         <div>
+          <h2 className="kicker mb-4 text-[#9a9a9a]">Also priced</h2>
+          <ul className="mb-8 space-y-1.5 text-[14px]">
+            <li>
+              <Link href="/decks" className="hover-rule">
+                Commander decks
+              </Link>
+            </li>
+            <li>
+              <Link href="/secret-lair" className="hover-rule">
+                Secret Lair drops
+              </Link>
+            </li>
+          </ul>
           <h2 className="kicker mb-4 text-[#9a9a9a]">About</h2>
           <ul className="space-y-1.5 text-[14px]">
             <li>

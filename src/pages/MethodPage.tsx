@@ -31,6 +31,7 @@ const TOC: [string, string][] = [
   ["realism", "Bulk floors and selling costs"],
   ["simulation", "Why simulate at all"],
   ["bulk", "One box or a hundred"],
+  ["fixed", "Commander decks and Secret Lairs"],
   ["limits", "What this doesn't know"],
 ];
 
@@ -200,6 +201,26 @@ value of a box  = packs per box × value of a pack`}
               one at a time. Selling that way costs fees and postage, and the slow cards sit in stock. Selling the lot on to another
               store returns roughly half to two thirds of market. The selling-fees slider goes to 50% for that, and the minimum-price
               setting drops the bulk nobody pays for.
+            </P>
+
+            <H id="fixed">Commander decks and Secret Lair drops</H>
+            <P>
+              A preconstructed Commander deck or a Secret Lair drop holds the same cards in every copy, so there is nothing to
+              simulate: opened, it is worth exactly what its cards are worth. MTGJSON publishes the card list of each one, down to
+              which cards are foil or etched foil. We price every card at its TCGplayer market price in that finish, multiply by the
+              copies, and apply your minimum price and selling fees just as for boosters. The sealed price is TCGplayer&rsquo;s
+              market price for the sealed product, matched through the product ids MTGJSON records.
+            </P>
+            <P>
+              The return and the verdict read the same way: +20% means $120 of cards for every $100 the sealed product costs. Two
+              things to keep in mind. A deck&rsquo;s hundred cards are slow to sell one by one and most of the value usually sits in a
+              handful of them, so the minimum-price setting matters more here than for a booster box. And a sealed price includes
+              what collectors pay for it staying sealed; older decks and drops often sell for more than their cards for that reason
+              alone.
+            </P>
+            <P>
+              Tokens and the oversized display commander count as nothing. A card MTGJSON lists but Scryfall can&rsquo;t match is left
+              out, and the product&rsquo;s page says how many.
             </P>
 
             <H id="limits">What this doesn&rsquo;t know</H>

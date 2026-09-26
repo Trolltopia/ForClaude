@@ -1,5 +1,8 @@
 import { useState } from "react";
 import type { CardRecord } from "@/lib/types";
+
+/** What a scan or a typeset stand-in needs: any card record, or a card in a deck list. */
+type ImageCard = Pick<CardRecord, "name" | "image" | "rarity" | "set" | "cn"> & { typeLine?: string };
 import { cn } from "@/lib/utils";
 import { RarityPip } from "./RarityPip";
 
@@ -10,7 +13,7 @@ export function CardImage({
   className,
   eager = false,
 }: {
-  card: CardRecord;
+  card: ImageCard;
   foil?: boolean;
   className?: string;
   eager?: boolean;
@@ -35,7 +38,7 @@ export function CardImage({
   );
 }
 
-function Proxy({ card }: { card: CardRecord }) {
+function Proxy({ card }: { card: ImageCard }) {
   return (
     <div className="flex size-full flex-col border-[6px] border-ink p-[7%] text-ink" role="img" aria-label={card.name}>
       <div className="display text-[clamp(13px,1.6vw,19px)] leading-tight">{card.name}</div>

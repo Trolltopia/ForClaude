@@ -1,5 +1,6 @@
 import type { Settings } from "./settings";
-import type { CardFinish, CardRecord, FixedCard, FixedKind, FixedProduct, FixedSummary } from "./types";
+import { verdictFor, type Verdict } from "./verdict";
+import type { CardFinish, CardRecord, FixedKind, FixedProduct, FixedSummary } from "./types";
 
 /** Where each kind lives: /decks and data/decks.json, /secret-lair and data/secret-lair.json. */
 export const FIXED_PATH: Record<FixedKind, string> = { commander: "decks", "secret-lair": "secret-lair" };
@@ -61,7 +62,20 @@ export function fixedId(name: string, setCode: string): string {
   return `${base}-${setCode.toLowerCase()}`;
 }
 
-/** Cards sorted the way the product page lists them: most valuable copy first. */
-export function byValue(a: FixedCard, b: FixedCard): number {
-  return (b.price ?? -1) - (a.price ?? -1) || a.name.localeCompare(b.name);
+/** Below this share of priced copies, a product's card value is only a floor. */
+export const PRICED_ENOUGH = 0.95;
+
+export function isComplete(pricedShare: number): boolean {
+  return pricedShare >= PRICED_ENOUGH;
+}
+
+/**
+ * The verdict for a deck or drop. Cards without a price count as nothing, so with prices
+ * missing the value is a floor: enough to say the cards beat the sealed price, never that
+ * they fall short. Then there's no verdict.
+ */
+export function fixedVerdict(ret: number | null, pricedShare: number, releasedAt: string): Verdict | null {
+  const v = verdictFor(ret, releasedAt);
+  if (!v || v === "early" || v === "crack" || isComplete(pricedShare)) return v;
+  return null;
 }

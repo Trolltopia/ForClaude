@@ -16,6 +16,12 @@ function NavLinks() {
         The Board
       </Link>
       <SetMenu />
+      <Link href="/decks" className="hover-rule hidden font-sans text-[14px] font-bold tracking-[0.02em] lg:inline">
+        Commander
+      </Link>
+      <Link href="/secret-lair" className="hover-rule hidden font-sans text-[14px] font-bold tracking-[0.02em] lg:inline">
+        Secret Lair
+      </Link>
       <SettingsMenu />
       <Link href="/method" className="hover-rule hidden font-sans text-[14px] font-bold tracking-[0.02em] sm:inline">
         Method
@@ -75,7 +81,7 @@ export function Masthead({ variant = "full" }: { variant?: "full" | "compact" })
           <Wordmark className="text-[clamp(56px,11vw,132px)]" />
         </Link>
         <p className="mt-4 font-serif text-[17px] text-body italic sm:text-[19px]">
-          What a Magic booster box is worth once you open it. Priced every morning.
+          What a Magic booster box, Commander deck or Secret Lair is worth once you open it. Priced every morning.
         </p>
       </div>
       <div className="border-y-2 border-rule">

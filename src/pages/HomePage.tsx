@@ -418,6 +418,30 @@ export function HomePage() {
           </p>
         </section>
 
+        <section className="mt-16 grid border-y-2 border-rule sm:grid-cols-2" aria-label="Also priced">
+          {[
+            [
+              "/decks",
+              "Commander decks",
+              "Every preconstructed deck, its hundred cards priced one by one against what the sealed deck sells for.",
+            ],
+            ["/secret-lair", "Secret Lair drops", "Every drop’s cards against the sealed price: which are worth more opened, and which sealed."],
+          ].map(([href, title, body]) => (
+            <Link
+              key={href}
+              href={href}
+              className="group block border-t border-hairline py-8 first:border-t-0 sm:border-t-0 sm:px-8 sm:first:pl-0 sm:[&:not(:first-child)]:border-l"
+            >
+              <p className="kicker text-body">Also priced</p>
+              <h3 className="display mt-2 text-[34px] leading-none group-hover:underline group-hover:underline-offset-4 sm:text-[40px]">
+                {title}
+              </h3>
+              <p className="mt-3 max-w-md font-serif text-[17px] leading-relaxed text-ink-soft">{body}</p>
+              <span className="mt-4 inline-block font-sans text-[14px] font-bold">See every one →</span>
+            </Link>
+          ))}
+        </section>
+
         <section className="mt-16" aria-label="How to read the board">
           <HowToRead settings={settings} />
         </section>

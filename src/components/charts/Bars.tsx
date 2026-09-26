@@ -13,10 +13,6 @@ export function ShareBar({ value, max, className }: { value: number; max: number
 }
 
 /**
- * Price-to-value on a scale centred at 1.00×. Left of centre (blue) the cards are worth
- * more than the box; right of centre (red) the box costs more than its cards.
- */
-/**
  * Where a return sits either side of break-even: gains run right in blue, losses left in
  * red, clamped at ±50% so one outlier doesn't flatten the rest.
  */

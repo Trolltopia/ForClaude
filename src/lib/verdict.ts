@@ -54,3 +54,23 @@ export function settingsPhrase(params: EvParams): string {
   if (!floor && !fee) return "at full market price";
   return [floor, fee].filter(Boolean).join(", ");
 }
+
+/**
+ * The verdict sentence for a Commander deck or Secret Lair drop. Its cards are known in
+ * advance, so there's no average and no luck: the cards are simply worth this much.
+ * `unpriced` counts the cards without a market price, which make the value a floor.
+ */
+export function fixedVerdictLine(price: number, value: number, noun: string, releasedAt?: string, unpriced = 0): string {
+  const ret = value / price - 1;
+  const floor = unpriced > 0 ? ` That’s before ${unpriced} card${unpriced === 1 ? "" : "s"} with no market price yet.` : "";
+  if (releasedAt && !isReleased(releasedAt)) {
+    return `It isn’t out until ${date(releasedAt)}. Preorder singles prices rest on a handful of early sales and usually fall after launch, so read the card value as a ceiling.`;
+  }
+  if (ret >= 0.05) {
+    return `The cards are worth ${percent(ret)} more than the sealed ${noun}: open it, sell the singles, and you’d come out about ${money(value - price)} ahead.${floor}`;
+  }
+  if (ret <= -0.05) {
+    return `The cards are worth ${percent(-ret)} less than the sealed ${noun}: selling them one by one would lose about ${money(price - value)}. It’s worth more sealed.`;
+  }
+  return `Sealed and opened are within 5% of each other (${signedPercent(ret)}). Open it to play, not for the money.`;
+}

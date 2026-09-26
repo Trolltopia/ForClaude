@@ -127,6 +127,7 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
   const cards = new Map((ids.length ? await deps.client.collection(ids) : []).map((c) => [c.id, normaliseCard(c)]));
 
   const used = new Set<string>();
+  let explained = 0;
   return pending.map(({ entry, kind, deck, setName, price, tcgplayerId, contents }) => {
     let id = fixedId(entry.name, entry.code);
     for (let n = 2; used.has(id); n++) id = `${fixedId(entry.name, entry.code)}-${n}`;
@@ -154,6 +155,16 @@ export async function buildFixedProducts(entries: DeckListEntry[], deps: FixedDe
         scryfallUri: card.scryfallUri,
         ...(c.commander ? { commander: true } : {}),
       });
+    }
+    // Say why a product is mostly unpriced, so the next run can be read without guessing.
+    const unpriced = list.filter((c) => c.price == null);
+    const copies = list.reduce((s, c) => s + c.count, 0);
+    if (copies && unpriced.reduce((s, c) => s + c.count, 0) / copies > 0.5 && explained++ < 30) {
+      for (const u of unpriced.slice(0, 3)) {
+        const card = cards.get(u.id)!;
+        const p = card.prices;
+        log(`  unpriced in ${entry.name} (${entry.code}): ${u.name} ${u.set} ${u.cn} as ${u.finish}; Scryfall finishes ${card.finishes.join("/")}, usd ${p.usd} foil ${p.usdFoil} etched ${p.usdEtched}`);
+      }
     }
     if (missing) notes.push(`${missing} card${missing === 1 ? "" : "s"} in the list could not be matched to Scryfall and are left out.`);
     if (price.usd == null) notes.push("TCGplayer has no market price for the sealed product yet.");

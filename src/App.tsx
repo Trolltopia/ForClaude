@@ -9,6 +9,8 @@ import { HomePage } from "@/pages/HomePage";
 // The calculator and the long read are split out so the front page loads light.
 const SetPage = lazy(() => import("@/pages/SetPage").then((m) => ({ default: m.SetPage })));
 const MethodPage = lazy(() => import("@/pages/MethodPage").then((m) => ({ default: m.MethodPage })));
+const FixedBoardPage = lazy(() => import("@/pages/FixedBoardPage").then((m) => ({ default: m.FixedBoardPage })));
+const FixedPage = lazy(() => import("@/pages/FixedPage").then((m) => ({ default: m.FixedPage })));
 
 function ScrollToTop() {
   const [path] = useLocation();
@@ -55,6 +57,10 @@ export function App() {
                 <Route path="/sets/:code/:booster?">
                   {(p) => <SetPage key={p.code} code={p.code.toLowerCase()} booster={p.booster?.toLowerCase()} />}
                 </Route>
+                <Route path="/decks">{() => <FixedBoardPage key="commander" kind="commander" />}</Route>
+                <Route path="/decks/:id">{(p) => <FixedPage key={p.id} kind="commander" id={p.id} />}</Route>
+                <Route path="/secret-lair">{() => <FixedBoardPage key="secret-lair" kind="secret-lair" />}</Route>
+                <Route path="/secret-lair/:id">{(p) => <FixedPage key={p.id} kind="secret-lair" id={p.id} />}</Route>
                 <Route path="/method" component={MethodPage} />
                 <Route component={NotFound} />
               </Switch>

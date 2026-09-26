@@ -19,6 +19,25 @@ export function SetMenu() {
           sideOffset={10}
           className="z-50 max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto border border-ink bg-canvas pb-1"
         >
+          <DropdownMenu.Group>
+            <DropdownMenu.Label className="kicker sticky top-0 border-b border-hairline bg-canvas px-4 pt-3 pb-1.5 text-body normal-case">
+              Decks and drops
+            </DropdownMenu.Label>
+            {[
+              ["/decks", "Commander decks", "Every preconstructed deck"],
+              ["/secret-lair", "Secret Lair drops", "Every drop"],
+            ].map(([href, label, note]) => (
+              <DropdownMenu.Item key={href} asChild>
+                <Link
+                  href={href}
+                  className="flex items-baseline gap-3 px-4 py-2 text-ink outline-none data-[highlighted]:bg-ink data-[highlighted]:text-canvas"
+                >
+                  <span className="flex-1 truncate font-sans text-[14px] font-semibold">{label}</span>
+                  <span className="font-mono text-[11px] opacity-60">{note}</span>
+                </Link>
+              </DropdownMenu.Item>
+            ))}
+          </DropdownMenu.Group>
           {ERAS.map((era) => {
             const sets = CATALOG.filter((s) => eraOf(s.releasedAt) === era);
             return (

@@ -5,7 +5,7 @@ import { chance, money, signedPercent } from "@/lib/format";
 import { returnOf } from "@/lib/verdict";
 import { cn } from "@/lib/utils";
 
-function Tile({
+export function Tile({
   label,
   info,
   value,

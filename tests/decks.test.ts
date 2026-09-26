@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildFixedProducts, deckContents, fixedKindOf } from "../src/lib/data/decks";
 import type { MtgjsonSetFile } from "../src/lib/data/mtgjson";
 import { createScryfallClient, type ScryfallCard } from "../src/lib/data/scryfall";
-import { fixedId, fixedValue, priceInFinish, summariseFixed } from "../src/lib/fixed";
+import { fixedId, fixedValue, fixedVerdict, priceInFinish, summariseFixed } from "../src/lib/fixed";
 
 const sf = (id: string, prices: ScryfallCard["prices"], extra: Partial<ScryfallCard> = {}): ScryfallCard => ({
   object: "card",
@@ -140,6 +140,17 @@ describe("fixed products", () => {
     expect(fixedValue(s.values, { floor: 0, fees: 0 })).toBeCloseTo(71.5);
     // Ignoring cards under 25¢ drops the thirty bulk commons; 8% fees come off the rest.
     expect(fixedValue(s.values, { floor: 0.25, fees: 8 })).toBeCloseTo(68.5 * 0.92);
+  });
+
+  it("won't call a partly priced product worth more sealed", () => {
+    const out = "2020-01-01";
+    expect(fixedVerdict(0.3, 1, out)).toBe("crack");
+    expect(fixedVerdict(-0.3, 1, out)).toBe("keep");
+    // With prices missing the value is a floor: a gain still stands, a loss or a tie doesn't.
+    expect(fixedVerdict(0.3, 0.5, out)).toBe("crack");
+    expect(fixedVerdict(-0.3, 0.5, out)).toBeNull();
+    expect(fixedVerdict(0, 0.5, out)).toBeNull();
+    expect(fixedVerdict(-0.3, 0.5, "2999-01-01")).toBe("early");
   });
 
   it("makes readable ids", () => {
