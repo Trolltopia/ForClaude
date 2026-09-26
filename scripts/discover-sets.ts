@@ -96,9 +96,48 @@ async function discoverDecks() {
   for (const p of withCards.slice(-3)) console.log(`  sample: ${JSON.stringify(p).slice(0, 900)}`);
 }
 
+/** Sizes and links: deck files, set files' own deck lists, and where Secret Lair products sit on TCGplayer. */
+async function discoverDeckDetails() {
+  const size = async (url: string) => {
+    const res = await fetch(url, { headers });
+    return res.ok ? `${Math.round((await res.arrayBuffer()).byteLength / 1024)} KB` : `HTTP ${res.status}`;
+  };
+  console.log(`Commander deck file: ${await size("https://mtgjson.com/api/v5/decks/CallingAllAngels_FDC.json")}, gzipped: ${await size("https://mtgjson.com/api/v5/decks/CallingAllAngels_FDC.json.gz")}`);
+  for (const code of ["FDC", "SLD", "BLC"]) {
+    const file = await json<{ data: Record<string, unknown> & { decks?: Record<string, unknown>[]; sealedProduct?: SealedProduct[]; tcgplayerGroupId?: number } }>(
+      `https://mtgjson.com/api/v5/${code}.json.gz`,
+    );
+    const data = file?.data;
+    if (!data) continue;
+    const decks = data.decks ?? [];
+    console.log(`${code}: set keys ${Object.keys(data).join(", ")}; tcgplayerGroupId ${data.tcgplayerGroupId}; ${decks.length} decks`);
+    const d = decks[0];
+    if (d) {
+      console.log(`  deck keys: ${Object.keys(d).join(", ")}`);
+      const board = (d.mainBoard ?? []) as Record<string, unknown>[];
+      console.log(`  first deck: ${JSON.stringify({ name: d.name, type: d.type, sealedProductUuids: d.sealedProductUuids, cards: board.length, first: board[0] }).slice(0, 500)}`);
+      const uuids = (d.sealedProductUuids ?? []) as string[];
+      const product = (data.sealedProduct ?? []).find((p) => uuids.includes((p as { uuid?: string }).uuid ?? ""));
+      console.log(`  its sealed product: ${JSON.stringify({ name: product?.name, category: product?.category, tcg: product?.identifiers?.tcgplayerProductId })}`);
+    }
+  }
+  const groups = (await json<{ results: { groupId: number; name: string; abbreviation?: string; publishedOn?: string }[] }>("https://tcgcsv.com/tcgplayer/1/groups"))?.results ?? [];
+  const lairs = groups.filter((g) => /secret lair/i.test(g.name));
+  console.log(`TCGplayer groups named Secret Lair: ${lairs.length}`);
+  for (const g of lairs.slice(0, 30)) console.log(`  ${g.groupId} ${g.abbreviation ?? ""} ${g.publishedOn?.slice(0, 10) ?? ""} ${g.name}`);
+  const sld = await json<{ data: { sealedProduct?: SealedProduct[] } }>("https://mtgjson.com/api/v5/SLD.json.gz");
+  const ids = new Set((sld?.data.sealedProduct ?? []).map((p) => Number(p.identifiers?.tcgplayerProductId)).filter(Boolean));
+  for (const g of lairs.slice(0, 12)) {
+    const products = (await json<{ results: { productId: number }[] }>(`https://tcgcsv.com/tcgplayer/1/${g.groupId}/products`))?.results ?? [];
+    const hits = products.filter((p) => ids.has(p.productId)).length;
+    console.log(`  group ${g.groupId} ${g.name}: ${products.length} products, ${hits} are MTGJSON Secret Lair products`);
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes("--decks")) return discoverDecks();
+  if (args.includes("--deck-details")) return discoverDeckDetails();
   const rawIndex = args.indexOf("--raw");
   const raw = rawIndex >= 0 ? new Set(args.slice(rawIndex + 1).map((c) => c.toUpperCase())) : new Set<string>();
 
