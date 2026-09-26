@@ -134,8 +134,53 @@ async function discoverDeckDetails() {
   }
 }
 
+/**
+ * Why a foil card in a deck or drop has no price: its MTGJSON record, the deck's entry for
+ * it, and every TCGplayer product and price row with its name in the set's group.
+ */
+async function discoverCardPrices() {
+  const checks: [string, string, string][] = [
+    ["SLD", "Artist Series: Kieran Yanner Foil Edition", "Demonic Tutor"],
+    ["SLD", "Goblingram Foil Edition", ""],
+    ["SLD", "Outlaw Anthology Vol. 1: Rebellious Renegades", ""],
+    ["FIC", "Limit Break Collector's Edition (FINAL FANTASY VII)", "Arcane Signet"],
+    ["M3C", "Graveyard Overdrive Collector's Edition", "Broodmate Tyrant"],
+  ];
+  const files = new Map<string, { data: Record<string, unknown> & { cards: Record<string, unknown>[]; decks?: Record<string, unknown>[]; tcgplayerGroupId?: number } } | null>();
+  for (const [code, deckName, cardName] of checks) {
+    if (!files.has(code)) files.set(code, await json(`https://mtgjson.com/api/v5/${code}.json.gz`));
+    const data = files.get(code)?.data;
+    if (!data) continue;
+    const deck = (data.decks ?? []).find((d) => String(d.name).startsWith(deckName));
+    console.log(`\n${code} "${deckName}": deck ${deck ? "found" : "not found"}, group ${data.tcgplayerGroupId}`);
+    if (!deck) continue;
+    const refs = [...((deck.commander as Record<string, unknown>[]) ?? []), ...((deck.mainBoard as Record<string, unknown>[]) ?? [])];
+    const byUuid = new Map(data.cards.map((c) => [c.uuid as string, c]));
+    const picked = refs.filter((r) => !cardName || (byUuid.get(r.uuid as string)?.name as string | undefined)?.startsWith(cardName)).slice(0, 2);
+    for (const ref of picked) {
+      const card = byUuid.get(ref.uuid as string);
+      console.log(`  ref ${JSON.stringify(ref)}`);
+      console.log(`  card ${JSON.stringify({ name: card?.name, number: card?.number, finishes: card?.finishes, isPromo: card?.isPromo, promoTypes: card?.promoTypes, identifiers: card?.identifiers })}`);
+      // Other MTGJSON printings of the same card in this set.
+      const twins = data.cards.filter((c) => c.name === card?.name && c.uuid !== card?.uuid).slice(0, 4);
+      for (const t of twins) console.log(`    twin ${JSON.stringify({ number: t.number, finishes: t.finishes, promoTypes: t.promoTypes, tcg: (t.identifiers as Record<string, string>)?.tcgplayerProductId, etched: (t.identifiers as Record<string, string>)?.tcgplayerEtchedProductId })}`);
+      const group = data.tcgplayerGroupId;
+      if (!group) continue;
+      const products = (await json<{ results: { productId: number; name: string; extendedData?: { name: string; value: string }[] }[] }>(`https://tcgcsv.com/tcgplayer/1/${group}/products`))?.results ?? [];
+      const prices = (await json<{ results: { productId: number; subTypeName: string; marketPrice: number | null; midPrice: number | null; lowPrice: number | null }[] }>(`https://tcgcsv.com/tcgplayer/1/${group}/prices`))?.results ?? [];
+      const name = String(card?.name ?? "").split(" // ")[0];
+      for (const p of products.filter((x) => x.name.startsWith(name)).slice(0, 8)) {
+        const num = p.extendedData?.find((e) => e.name === "Number")?.value;
+        const rows = prices.filter((r) => r.productId === p.productId).map((r) => `${r.subTypeName}: market ${r.marketPrice} mid ${r.midPrice} low ${r.lowPrice}`);
+        console.log(`    tcg ${p.productId} "${p.name}" #${num ?? "?"} → ${rows.join("; ") || "no price rows"}`);
+      }
+    }
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes("--card-prices")) return discoverCardPrices();
   if (args.includes("--decks")) return discoverDecks();
   if (args.includes("--deck-details")) return discoverDeckDetails();
   const rawIndex = args.indexOf("--raw");

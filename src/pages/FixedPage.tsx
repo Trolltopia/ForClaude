@@ -207,7 +207,9 @@ export function FixedPage({ kind, id }: { kind: FixedKind; id: string }) {
           <div>
             {back}
             <p className="kicker mt-8 text-body">
-              {name.one} · {product.setName} · {released ? "Released" : "Releases"} {date(product.releasedAt)}
+              {[name.one, product.setName.toLowerCase() === name.one.toLowerCase() ? null : product.setName, `${released ? "Released" : "Releases"} ${date(product.releasedAt)}`]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
             <h1 className="display mt-3 text-[clamp(44px,7.4vw,100px)] leading-[0.92]">{product.name}</h1>
             <p className="mt-6 max-w-2xl font-serif text-[19px] leading-[1.5] text-ink-soft sm:text-[21px]">
@@ -286,12 +288,21 @@ export function FixedPage({ kind, id }: { kind: FixedKind; id: string }) {
             value={<span className={!released || ret == null ? "" : ret >= 0 ? "text-good" : "text-bad"}>{signedPercent(ret)}</span>}
             foot={ret != null ? <ReturnMeter value={ret} /> : "Needs a sealed price"}
           />
-          <Tile
-            label="In the top five cards"
-            info="How much of the value sits in the five most valuable cards. The rest is mostly cards that are slow to sell one at a time."
-            value={value > 0 ? percent(topFive / value) : "—"}
-            foot={`${count(cheap)} of the ${count(copies)} cards are under $1 each`}
-          />
+          {copies > 10 ? (
+            <Tile
+              label="In the top five cards"
+              info="How much of the value sits in the five most valuable cards. The rest is mostly cards that are slow to sell one at a time."
+              value={value > 0 ? percent(topFive / value) : "—"}
+              foot={`${count(cheap)} of the ${count(copies)} cards are under $1 each`}
+            />
+          ) : (
+            <Tile
+              label="The best card"
+              info="How much of the value sits in the single most valuable card."
+              value={value > 0 && rows[0] ? percent(rows[0].total / value) : "—"}
+              foot={rows[0] ? `${rows[0].c.name}: ${money(rows[0].total)} of ${money(value)}` : undefined}
+            />
+          )}
         </div>
 
         {best.length > 0 && (
