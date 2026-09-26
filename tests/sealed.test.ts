@@ -3,7 +3,7 @@ import { DEFAULT_PARAMS } from "../src/lib/engine/ev";
 import {
   classifySealed,
   fetchSealed,
-  findCommanderGroups,
+  findCompanionGroups,
   playBoostersIn,
   sealedFrom,
   type TcgGroup,
@@ -115,8 +115,22 @@ describe("Commander companion groups", () => {
   ];
 
   it("pairs a set with its Commander group by name and release date", () => {
-    const found = findCommanderGroups(groups, groups[0], "Duskmourn: House of Horror", "2024-09-27");
+    const found = findCompanionGroups(groups, groups[0], "Duskmourn: House of Horror", "2024-09-27");
     expect(found.map((g) => g.groupId)).toEqual([2]);
+  });
+
+  it("also pairs a set with its Jumpstart companion", () => {
+    const fdn: TcgGroup[] = [
+      { groupId: 10, name: "Magic: The Gathering Foundations", abbreviation: "FDN", publishedOn: "2024-11-15T00:00:00" },
+      { groupId: 11, name: "Foundations Jumpstart", abbreviation: "J25", publishedOn: "2024-11-15T00:00:00" },
+      { groupId: 12, name: "Jumpstart 2022", abbreviation: "J22", publishedOn: "2022-12-02T00:00:00" },
+    ];
+    expect(findCompanionGroups(fdn, fdn[0], "Foundations", "2024-11-15").map((g) => g.groupId)).toEqual([11]);
+    expect(classifySealed(P(1, "Foundations Jumpstart Booster Display"))).toBe("Jumpstart");
+  });
+
+  it("files Deluxe Commander Kits with the precons", () => {
+    expect(classifySealed(P(1, "Bloomburrow Deluxe Commander Kit - Peace Offering"))).toBe("Commander Deck");
   });
 
   it("treats any sealed deck in a Commander group as a precon", () => {

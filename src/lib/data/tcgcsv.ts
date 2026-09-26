@@ -47,16 +47,17 @@ export function findGroup(groups: TcgGroup[], code: string, name: string): TcgGr
 }
 
 /**
- * TCGplayer files a set's Commander precons under a companion group such as
- * "Commander: Bloomburrow". Match on the set's leading name and a release date
- * within two months, so "Commander: Duskmourn" pairs with "Duskmourn: House of Horror".
+ * TCGplayer files a set's Commander precons and Jumpstart boosters under companion
+ * groups such as "Commander: Bloomburrow" or "Foundations Jumpstart". Match on the
+ * set's leading name and a release date within two months, so "Commander: Duskmourn"
+ * pairs with "Duskmourn: House of Horror".
  */
-export function findCommanderGroups(groups: TcgGroup[], main: TcgGroup, setName: string, releasedAt: string): TcgGroup[] {
+export function findCompanionGroups(groups: TcgGroup[], main: TcgGroup, setName: string, releasedAt: string): TcgGroup[] {
   const key = setName.split(":")[0].trim().toLowerCase();
   const released = Date.parse(releasedAt.slice(0, 10));
   const WINDOW = 60 * 86_400_000;
   return groups.filter((g) => {
-    if (g.groupId === main.groupId || !/commander/i.test(g.name)) return false;
+    if (g.groupId === main.groupId || !/commander|jumpstart/i.test(g.name)) return false;
     if (!g.name.toLowerCase().includes(key)) return false;
     const published = g.publishedOn ? Date.parse(g.publishedOn.slice(0, 10)) : Number.NaN;
     return Number.isNaN(published) || Number.isNaN(released) || Math.abs(published - released) <= WINDOW;
@@ -107,7 +108,7 @@ export function classifySealed(p: TcgProduct, opts: { commander?: boolean } = {}
   if (/gift bundle/i.test(n)) return "Gift Bundle";
   if (/bundle/i.test(n)) return "Bundle";
   if (/prerelease/i.test(n)) return "Prerelease Pack";
-  if (/commander deck/i.test(n) || (opts.commander && /\bdecks?\b/i.test(n))) return "Commander Deck";
+  if (/commander (deck|kit)/i.test(n) || (opts.commander && /\bdecks?\b/i.test(n))) return "Commander Deck";
   if (/starter (kit|deck|collection)|beginner box/i.test(n)) return "Starter Kit";
   if (/scene box/i.test(n)) return "Scene Box";
   if (/jumpstart/i.test(n)) return "Jumpstart";
@@ -160,7 +161,7 @@ export interface SealedResult {
 }
 
 /**
- * Every sealed product TCGplayer lists for the set and its Commander companion set,
+ * Every sealed product TCGplayer lists for the set and its Commander and Jumpstart companions,
  * with today's prices, plus the Play Booster display price.
  */
 export async function fetchSealed(
@@ -183,10 +184,10 @@ export async function fetchSealed(
 
   const [products, prices] = await load(group);
   const result = sealedFrom(products, prices, packsPerBox);
-  for (const commander of findCommanderGroups(groups, group, name, releasedAt)) {
+  for (const companion of findCompanionGroups(groups, group, name, releasedAt)) {
     try {
-      const [cp, cx] = await load(commander);
-      result.products.push(...toSealed(cp, cx, packsPerBox, true));
+      const [cp, cx] = await load(companion);
+      result.products.push(...toSealed(cp, cx, packsPerBox, /commander/i.test(companion.name)));
     } catch {
       // A missing companion group shouldn't cost us the main set's prices.
     }

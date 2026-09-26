@@ -51,8 +51,8 @@ export function SealedSection({
   onUseAsBox: (price: number | null) => void;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const priced = products.filter((p) => p.market != null || p.low != null);
-  const groups = GROUPS.map((g) => ({ ...g, items: priced.filter((p) => g.kinds.includes(p.kind)) })).filter((g) => g.items.length);
+  // Unpriced listings (no sales, no offers yet) stay in the list, after the priced ones.
+  const groups = GROUPS.map((g) => ({ ...g, items: products.filter((p) => g.kinds.includes(p.kind)) })).filter((g) => g.items.length);
 
   const row = (p: SealedProduct) => {
     const perPack = p.packs && p.market != null ? p.market / p.packs : null;
@@ -72,7 +72,9 @@ export function SealedSection({
             </span>
           </a>
         </td>
-        <td className="num py-2 pl-4 text-right font-semibold">{money(p.market)}</td>
+        <td className="num py-2 pl-4 text-right font-semibold">
+          {p.market != null ? money(p.market) : <span className="font-sans text-[12.5px] font-normal text-muted">No sales yet</span>}
+        </td>
         <td className="num hidden py-2 pl-4 text-right text-body sm:table-cell">{money(p.low)}</td>
         <td className="num hidden py-2 pl-4 text-right md:table-cell">
           {perPack != null ? money(perPack) : <span className="text-muted">—</span>}
