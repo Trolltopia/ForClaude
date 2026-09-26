@@ -26,7 +26,7 @@ interface SealedProduct {
   subtype?: string;
   productSize?: number;
   cardCount?: number;
-  contents?: Record<string, unknown[]>;
+  contents?: Record<string, unknown[]> & { card?: unknown[] };
   identifiers?: { tcgplayerProductId?: string };
 }
 
@@ -60,8 +60,45 @@ function packsInside(p: SealedProduct): string {
   return parts.join(" + ");
 }
 
+/** What MTGJSON offers for fixed-content products: Commander deck lists and Secret Lair drops. */
+async function discoverDecks() {
+  const list = (await json<{ data: { code: string; fileName: string; name: string; releaseDate: string; type: string }[] }>(
+    "https://mtgjson.com/api/v5/DeckList.json",
+  ))?.data ?? [];
+  const byType = new Map<string, number>();
+  for (const d of list) byType.set(d.type, (byType.get(d.type) ?? 0) + 1);
+  console.log(`${list.length} decks: ${[...byType].sort((a, b) => b[1] - a[1]).map(([t, n]) => `${t} ${n}`).join(", ")}`);
+  const commander = list.filter((d) => d.type === "Commander Deck").sort((a, b) => b.releaseDate.localeCompare(a.releaseDate));
+  console.log(`Commander decks: ${commander.length}, ${commander.at(-1)?.releaseDate} to ${commander[0]?.releaseDate}`);
+  for (const d of commander.slice(0, 3)) console.log(`  ${d.releaseDate} ${d.code} ${d.fileName} ${d.name}`);
+  const sample = commander[0];
+  if (sample) {
+    const deck = await json<{ data: Record<string, unknown> }>(`https://mtgjson.com/api/v5/decks/${sample.fileName}.json`);
+    const data = deck?.data ?? {};
+    console.log(`Deck file keys: ${Object.keys(data).join(", ")}`);
+    for (const board of ["commander", "mainBoard", "sideBoard", "displayCommander", "planes", "schemes", "tokens"]) {
+      const cards = data[board] as Record<string, unknown>[] | undefined;
+      if (!cards?.length) continue;
+      const first = cards[0];
+      console.log(`  ${board}: ${cards.length} entries; entry keys: ${Object.keys(first).join(", ")}`);
+      console.log(`    first: ${JSON.stringify({ name: first.name, count: first.count, isFoil: first.isFoil, finishes: first.finishes, identifiers: first.identifiers }).slice(0, 400)}`);
+    }
+    console.log(`  sealedProductUuids: ${JSON.stringify(data.sealedProductUuids ?? null)}`);
+  }
+  const sld = await json<SetFile & { data: { cards: { uuid: string }[] } }>("https://mtgjson.com/api/v5/SLD.json.gz");
+  const sealed = sld?.data.sealedProduct ?? [];
+  const cats = new Map<string, number>();
+  for (const p of sealed) cats.set(`${p.category}/${p.subtype}`, (cats.get(`${p.category}/${p.subtype}`) ?? 0) + 1);
+  console.log(`SLD: ${sld?.data.cards.length ?? 0} cards, ${sealed.length} sealed products: ${[...cats].map(([k, n]) => `${k} ${n}`).join(", ")}`);
+  const withCards = sealed.filter((p) => Array.isArray(p.contents?.card) && p.contents!.card!.length);
+  const withTcg = sealed.filter((p) => p.identifiers?.tcgplayerProductId);
+  console.log(`  with card lists: ${withCards.length}, with TCGplayer ids: ${withTcg.length}`);
+  for (const p of withCards.slice(-3)) console.log(`  sample: ${JSON.stringify(p).slice(0, 900)}`);
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes("--decks")) return discoverDecks();
   const rawIndex = args.indexOf("--raw");
   const raw = rawIndex >= 0 ? new Set(args.slice(rawIndex + 1).map((c) => c.toUpperCase())) : new Set<string>();
 

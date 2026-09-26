@@ -137,7 +137,7 @@ export interface BulkOutcome {
 export interface SimulationSummary {
   boxes: number;
   mean: number;
-  percentiles: { p5: number; p10: number; p25: number; p50: number; p75: number; p90: number; p95: number; p99: number };
+  percentiles: { p1: number; p5: number; p10: number; p25: number; p50: number; p75: number; p90: number; p95: number; p99: number };
   min: number;
   max: number;
   /** Share of boxes worth at least the box price (null without a price). */
@@ -214,6 +214,7 @@ export function summarise(values: Float64Array, boxPrice: number | null, targetB
   for (let i = 0; i < n; i++) sum += sorted[i];
 
   const percentiles = {
+    p1: q(0.01),
     p5: q(0.05),
     p10: q(0.1),
     p25: q(0.25),

@@ -124,6 +124,10 @@ function report(snapshot: Snapshot) {
     const sim = summariseSimulation(simulateBoxValues(compileModel(snapshot.model, snapshot.cards, DEFAULT_PARAMS), snapshot.product.packsPerBox, 10_000, 20261002), box);
     const runs = sim.bulk.map((b) => `${b.boxes}: ${((b.beatPrice ?? 0) * 100).toFixed(1)}% ahead, pay at most ${usd(b.p10)}`);
     console.log(`    runs of boxes after 8% fees · ${runs.join(" · ")}`);
+    const pc = sim.percentiles;
+    console.log(
+      `    single boxes after 8% fees · worst of 10,000 ${usd(sim.min)} · 1 in 100 under ${usd(pc.p1)} · 1 in 10 under ${usd(pc.p10)} · median ${usd(pc.p50)} · best of 10,000 ${usd(sim.max)}`,
+    );
   }
   for (const c of ev.cards.slice(0, 6)) {
     console.log(
